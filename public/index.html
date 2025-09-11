@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lojinha - Sistema Completo</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/style.css">
+  
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="#">
+                <i class="bi bi-shop-window me-2"></i>Lojinha - Sistema Completo
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" id="nav-inicio">
+                            <i class="bi bi-house-door me-1"></i>Início
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-notas">
+                            <i class="bi bi-receipt me-1"></i>historico de vendas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-relatorios">
+                            <i class="bi bi-bar-chart me-1"></i>Relatórios
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-lixeira">
+                            <i class="bi bi-trash me-1"></i>Lixeira
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+   
+        <!-- Página Inicial -->
+        <div id="pagina-inicio">
+            <div class="mb-3">
+            <input type="text" id="search-input" class="form-control" placeholder="Pesquisar produto...">
+            </div>
+            <!-- Sales Panel -->
+            <div class="sales-panel text-center mb-4">
+                <h2><i class="bi bi-cart-check me-2"></i>Controle de Estoque e Vendas</h2>
+                <p class="mb-0">Gerencie seus produtos e vendas</p>
+            </div>
+
+            <div class="row">
+                <!-- Main Content -->
+                <div class="col-lg-8">
+                    <!-- Products Card -->
+                    <div class="card card-custom">
+                        <div class="card-header card-header-custom py-3">
+                            <h5 class="m-0"><i class="bi bi-grid me-2"></i>Produtos Ativos</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Nome</th>
+                                            <th>Categoria</th>
+                                            <th>Preço</th>
+                                            <th>Estoque</th>
+                                            <th>Vender</th>
+                                            <th>Ações de Estoque</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="products-table-body">
+                                        <!-- Produtos serão carregados aqui -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Carrinho de Compras -->
+                    <div class="card card-custom mt-4">
+                        <div class="card-header card-header-custom py-3">
+                            <h5 class="m-0"><i class="bi bi-cart me-2"></i>Carrinho de Compras</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="cart-empty" class="text-center py-4">
+                                <i class="bi bi-cart-x" style="font-size: 3rem;"></i>
+                                <p class="mt-3">Seu carrinho está vazio</p>
+                            </div>
+                            <div id="cart-items" class="d-none">
+                                <div class="cart-items">
+                                    <div id="cart-items-list">
+                                        <!-- Itens do carrinho serão adicionados aqui -->
+                                    </div>
+                                    <div class="cart-total">
+                                        Total: R$ <span id="cart-total-value">0,00</span>
+                                    </div>
+                                </div>
+                                <div class="d-grid gap-2 mt-3">
+                                    <button type="button" class="btn btn-primary-custom" onclick="finalizarVenda()">
+                                        <i class="bi bi-cart-check me-2"></i>Finalizar Venda
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sidebar -->
+                <div class="col-lg-4">
+                    <!-- New Product Form -->
+                    <div class="card card-custom mb-4">
+                        <div class="card-header card-header-custom py-3">
+                            <h5 class="m-0"><i class="bi bi-plus-circle me-2"></i>Novo Produto</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="novoProdutoForm">
+                                <div class="mb-3">
+                                    <label for="nome" class="form-label">Nome</label>
+                                    <input type="text" class="form-control" id="nome" name="nome" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="preco" class="form-label">Preço</label>
+                                    <input type="number" step="0.01" class="form-control" id="preco" name="preco" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="quantidade" class="form-label">Quantidade</label>
+                                    <input type="number" class="form-control" id="quantidade" name="quantidade" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="categoria" class="form-label">Categoria (opcional)</label>
+                                    <select class="form-select" id="categoria" name="categoria">
+                                        <option value="">Selecione uma categoria</option>
+                                        <option value="Alimentos">Alimentos</option>
+                                        <option value="Limpeza">Limpeza</option>
+                                        <option value="Bebidas">Bebidas</option>
+                                        <option value="Outros">Outros</option>
+                                    </select>
+                                </div>
+                                <button type="button" class="btn btn-primary-custom w-100" onclick="adicionarProduto()">
+                                    <i class="bi bi-check-circle me-2"></i>Adicionar Produto
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    
+                    <!-- Weather Info -->
+                    <div class="weather-info">
+                        <i class="bi bi-cloud-sun me-2"></i>25°C Parcialmente nublado
+                        <div class="mt-1" id="current-date">01/08/2025</div>
+                    </div>
+
+                    <!-- Instructions -->
+                    <div class="card card-custom mt-4">
+                        <div class="card-header card-header-custom py-3">
+                            <h5 class="m-0"><i class="bi bi-question-circle me-2"></i>Como Usar</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>1.</strong> Digite a quantidade e clique em <i class="bi bi-cart-plus text-primary"></i> para adicionar ao carrinho</p>
+                            <p><strong>2.</strong> Clique em "Finalizar Venda" para registrar a venda</p>
+                            <p><strong>3.</strong> Use <i class="bi bi-plus-circle text-success"></i> para aumentar estoque</p>
+                            <p><strong>4.</strong> Use <i class="bi bi-dash-circle text-warning"></i> para diminuir estoque</p>
+                            <p><strong>5.</strong> Use <i class="bi bi-trash text-danger"></i> para mover produtos para a lixeira</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Página Notas Fiscais -->
+        <div id="pagina-notas" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-receipt me-2"></i>historico de vendas</h2>
+                <button class="btn btn-outline-primary" onclick="voltarParaInicio()">
+                    <i class="bi bi-arrow-left me-1"></i>Voltar para Início
+                </button>
+            </div>
+
+            <div class="card card-custom">
+                <div class="card-header card-header-custom py-3">
+                    <h5 class="m-0"><i class="bi bi-receipt me-2"></i>Todo historico</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Número</th>
+                                    <th>Data</th>
+                                    <th>Cliente</th>
+                                    <th>Valor Total</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="notas-table-body">
+                                <!-- Notas fiscais serão carregadas aqui -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="notas-empty" class="text-center py-4">
+                        <i class="bi bi-receipt" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Nenhuma Venda</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Página Relatórios -->
+        <div id="pagina-relatorios" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-bar-chart me-2"></i>Relatórios</h2>
+                <button class="btn btn-outline-primary" onclick="voltarParaInicio()">
+                    <i class="bi bi-arrow-left me-1"></i>Voltar para Início
+                </button>
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card card-custom report-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Total de Vendas</h5>
+                            <h2 class="text-primary" id="total-vendas">R$ 0,00</h2>
+                            <p class="text-muted">Valor total em vendas</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card card-custom report-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Total de Produtos</h5>
+                            <h2 class="text-success" id="total-produtos">0</h2>
+                            <p class="text-muted">Produtos em estoque</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card card-custom report-card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">Notas Fiscais</h5>
+                            <h2 class="text-info" id="total-notas">0</h2>
+                            <p class="text-muted">Notas fiscais emitidas</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card card-custom mt-4">
+                <div class="card-header card-header-custom py-3">
+                    <h5 class="m-0"><i class="bi bi-grid me-2"></i>Vendas por Categoria</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Categoria</th>
+                                    <th>Quantidade Vendida</th>
+                                    <th>Valor Total</th>
+                                    <th>Percentual</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vendas-categoria-body">
+                                <!-- Vendas por categoria serão carregadas aqui -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card card-custom mt-4">
+                <div class="card-header card-header-custom py-3">
+                    <h5 class="m-0"><i class="bi bi-calendar me-2"></i>Vendas por Período</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label for="data-inicio" class="form-label">Data Início</label>
+                            <input type="date" class="form-control" id="data-inicio">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="data-fim" class="form-label">Data Fim</label>
+                            <input type="date" class="form-control" id="data-fim">
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-primary-custom" onclick="filtrarVendas()">
+                                <i class="bi bi-funnel me-1"></i>Filtrar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Data</th>
+                                    <th>Quantidade de Vendas</th>
+                                    <th>Valor Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vendas-periodo-body">
+                                <!-- Vendas por período serão carregadas aqui -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Página Lixeira -->
+        <div id="pagina-lixeira" class="d-none">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-trash me-2"></i>Lixeira</h2>
+                <button class="btn btn-outline-primary" onclick="voltarParaInicio()">
+                    <i class="bi bi-arrow-left me-1"></i>Voltar para Início
+                </button>
+            </div>
+
+            <div class="card card-custom">
+                <div class="card-header card-header-custom py-3">
+                    <h5 class="m-0"><i class="bi bi-trash me-2"></i>Produtos Excluídos</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Categoria</th>
+                                    <th>Preço</th>
+                                    <th>Estoque</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trash-table-body">
+                                <!-- Produtos excluídos serão carregados aqui -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="trash-empty" class="text-center py-4">
+                        <i class="bi bi-trash" style="font-size: 3rem;"></i>
+                        <p class="mt-3">A lixeira está vazia</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Nota Fiscal -->
+        <div class="modal fade" id="notaFiscalModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Nota #<span id="nota-numero"></span></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="invoice-box">
+                            <table cellpadding="0" cellspacing="0">
+                                <tr class="top">
+                                    <td colspan="2">
+                                        <table>
+                                            <tr>
+                                                <td class="title">
+                                                    <h3>Lojinha</h3>
+                                                </td>
+                                                <td>
+                                                    Nota #: <span id="nota-id"></span><br>
+                                                    Emitida em: <span id="nota-data"></span><br>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr class="information">
+                                    <td colspan="2">
+                                        <table>
+                                            <tr>
+                                                <td>
+                                                    Lojinha<br>
+                                                    Rua do Comércio, 123<br>
+                                                    Centro, São Paulo - SP
+                                                </td>
+                                                <td>
+                                                    Cliente: <span id="nota-cliente"></span><br>
+                                                    <!-- Documento: <span id="nota-documento"></span> -->
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr class="heading">
+                                    <td>Item</td>
+                                    <td>Preço</td>
+                                </tr>
+                                <tbody id="nota-itens">
+                                    <!-- Itens da nota fiscal -->
+                                </tbody>
+                                <tr class="total">
+                                    <td></td>
+                                    <td>Total: R$ <span id="nota-total"></span></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        <button type="button" class="btn btn-primary-custom" onclick="imprimirNota()">
+                            <i class="bi bi-printer me-1"></i>Imprimir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>    
+<script src="script.js"></script>
+   
+       
+</body>
+</html>
