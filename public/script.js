@@ -5,19 +5,30 @@ let produtos = [];
 let lixeira = [];
 let notasFiscais = [];
 let nextNotaId = 1;
+let relatorioDiario = {
+    data: new Date().toLocaleDateString('pt-BR'),
+    totalVendas: 0,
+    totalNotas: 0,
+    vendas: []
+};
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', function() {
     // Configura data atual
+    // Configura data atual
     const now = new Date();
-    document.getElementById('current-date').textContent =
-        `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getFullYear()}`;
+    document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR');
+
+    // Migra dados antigos antes de carregar
+    migrarDadosAntigos();
 
     // Carrega dados iniciais
     carregarProdutos();
     carregarLixeira();
     carregarNotasFiscais();
     carregarCarrinho();
+    carregarRelatorioDiario();
+    
     atualizarTabelaProdutos();
     atualizarTabelaNotas();
     atualizarTabelaLixeira();
@@ -30,32 +41,188 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Configura navegação
-    // No final do DOMContentLoaded, adicione:
     document.getElementById('nav-inicio').addEventListener('click', function(e) {
         e.preventDefault();
-        mostrarPaginaInicio();
+        mostrarPagina('inicio');
     });
 
     document.getElementById('nav-notas').addEventListener('click', function(e) {
         e.preventDefault();
-        mostrarPaginaNotas();
+        mostrarPagina('notas');
     });
 
     document.getElementById('nav-relatorios').addEventListener('click', function(e) {
         e.preventDefault();
-        mostrarPaginaRelatorios();
+        mostrarPagina('relatorios');
     });
 
     document.getElementById('nav-lixeira').addEventListener('click', function(e) {
         e.preventDefault();
-        mostrarPaginaLixeira();
+        mostrarPagina('lixeira');
+    });
+    
+    document.getElementById('nav-relatorio-diario').addEventListener('click', function(e) {
+        e.preventDefault();
+        mostrarPagina('relatorio-diario');
     });
     
     // Mostra a página inicial por padrão
-    mostrarPaginaInicio();
+    mostrarPagina('inicio');
 });
 
 // ---------------- Persistência de dados ----------------
+
+// Função para migrar dados antigos (notas excluídas que ainda estão no relatório diário)
+function migrarDadosAntigos() {
+    // Verifica se há notas fiscais no localStorage
+    const notasSalvas = localStorage.getItem('notasFiscais');
+    if (!notasSalvas) return;
+    
+    const notas = JSON.parse(notasSalvas);
+    
+    // Verifica se há relatório diário no localStorage
+    const relatorioSalvo = localStorage.getItem('relatorioDiario');
+    if (!relatorioSalvo) return;
+    
+    const relatorio = JSON.parse(relatorioSalvo);
+    
+    // Obtém a data de hoje
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    
+    // Se o relatório for de hoje, verifica consistência
+    if (relatorio.data === hoje) {
+        // Filtra as vendas do relatório diário, mantendo apenas as que existem nas notas fiscais
+        relatorio.vendas = relatorio.vendas.filter(venda => {
+            return notas.some(nota => nota.id === venda.id);
+        });
+        
+        // Recalcula totais
+        relatorio.totalNotas = relatorio.vendas.length;
+        relatorio.totalVendas = relatorio.vendas.reduce((total, venda) => total + venda.total, 0);
+        
+        // Salva o relatório corrigido
+        localStorage.setItem('relatorioDiario', JSON.stringify(relatorio));
+    }
+}
+
+
+// Função para mostrar página específica
+function mostrarPagina(pagina) {
+    // Esconde todas as páginas
+    const paginas = [
+        'pagina-inicio',
+        'pagina-notas', 
+        'pagina-relatorios',
+        'pagina-lixeira',
+        'pagina-relatorio-diario'
+    ];
+    
+    paginas.forEach(p => {
+        const elemento = document.getElementById(p);
+        if (elemento) {
+            elemento.classList.add('d-none');
+        }
+    });
+    
+    // Mostra a página solicitada
+    const paginaElemento = document.getElementById(`pagina-${pagina}`);
+    if (paginaElemento) {
+        paginaElemento.classList.remove('d-none');
+    }
+    
+    // Atualiza navegação
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.classList.remove('active');
+    });
+    document.getElementById(`nav-${pagina}`).classList.add('active');
+    
+    // Atualiza os dados específicos da página se necessário
+    if (pagina === 'notas') {
+        atualizarTabelaNotas();
+    } else if (pagina === 'relatorios') {
+        atualizarRelatorios();
+    } else if (pagina === 'lixeira') {
+        atualizarTabelaLixeira();
+    } else if (pagina === 'relatorio-diario') {
+        atualizarRelatorioDiario();
+    }
+}
+
+// Função para atualizar o relatório diário na tela
+function atualizarRelatorioDiario() {
+    // Verifica se precisa resetar para o dia atual
+    verificarResetDiario();
+    
+    document.getElementById('data-hoje').textContent = relatorioDiario.data;
+    document.getElementById('total-vendas-hoje').textContent = `R$ ${relatorioDiario.totalVendas.toFixed(2)}`;
+    document.getElementById('total-notas-hoje').textContent = relatorioDiario.totalNotas;
+    
+    const ticketMedio = relatorioDiario.totalNotas > 0 ? relatorioDiario.totalVendas / relatorioDiario.totalNotas : 0;
+    document.getElementById('ticket-medio-hoje').textContent = `R$ ${ticketMedio.toFixed(2)}`;
+    
+    const tbody = document.getElementById('vendas-hoje-body');
+    tbody.innerHTML = '';
+    
+    if (relatorioDiario.vendas.length > 0) {
+        // Mostra as últimas vendas primeiro (mais recentes no topo)
+        relatorioDiario.vendas.slice().reverse().forEach(venda => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${venda.hora}</td>
+                <td>${venda.id}</td>
+                <td>${venda.itens} itens</td>
+                <td>R$ ${venda.total.toFixed(2)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } else {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Nenhuma venda hoje</td></tr>';
+    }
+}
+
+// Função para salvar relatório diário
+function salvarRelatorioDiario() {
+    localStorage.setItem('relatorioDiario', JSON.stringify(relatorioDiario));
+}
+
+// Função para carregar relatório diário
+function carregarRelatorioDiario() {
+    const relatorioSalvo = localStorage.getItem('relatorioDiario');
+    if (relatorioSalvo) {
+        const relatorio = JSON.parse(relatorioSalvo);
+        
+        // Verifica se é do mesmo dia
+        const hoje = new Date().toLocaleDateString('pt-BR');
+        if (relatorio.data === hoje) {
+            relatorioDiario = relatorio;
+        } else {
+            // Se for um dia diferente, reinicia o relatório
+            relatorioDiario = {
+                data: hoje,
+                totalVendas: 0,
+                totalNotas: 0,
+                vendas: []
+            };
+            salvarRelatorioDiario();
+        }
+    }
+}
+
+// Função para verificar e resetar o relatório diário
+function verificarResetDiario() {
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    
+    if (relatorioDiario.data !== hoje) {
+        // Novo dia, resetar o relatório
+        relatorioDiario = {
+            data: hoje,
+            totalVendas: 0,
+            totalNotas: 0,
+            vendas: []
+        };
+        salvarRelatorioDiario();
+    }
+}
 
 // Salva produtos ativos no localStorage
 function salvarProdutos() {
@@ -93,7 +260,6 @@ function carregarLixeira() {
     }
 }
 
-// Carrega notas fiscais do localStorage
 // Carrega notas fiscais do localStorage
 function carregarNotasFiscais() {
     const notasSalvas = localStorage.getItem('notasFiscais');
@@ -240,9 +406,6 @@ function atualizarTabelaLixeira() {
     });
 }
 
-
-// Atualiza tabela de notas fiscais - VERSÃO CORRIGIDA
-// Atualiza tabela de notas fiscais - VERSÃO COM BOTÃO EXCLUIR
 // Atualiza tabela de notas fiscais
 function atualizarTabelaNotas() {
     const tableBody = document.getElementById('notas-table-body');
@@ -289,16 +452,34 @@ function atualizarTabelaNotas() {
     });
 }
 
-// Função para excluir nota fiscal
 // Função para excluir nota fiscal COM RENUMERAÇÃO
 function excluirNotaFiscal(id) {
     if (confirm("Tem certeza que deseja excluir esta nota fiscal? Esta ação não pode ser desfeita!")) {
-        // Encontra o índice da nota
+        // Encontra a nota a ser excluída
         const notaIndex = notasFiscais.findIndex(n => n.id === id);
         
         if (notaIndex !== -1) {
-            // Remove a nota do array
+            const nota = notasFiscais[notaIndex];
+            
+            // Remove a nota do array de notas fiscais
             notasFiscais.splice(notaIndex, 1);
+            
+            // ATUALIZAÇÃO DO RELATÓRIO DIÁRIO (NOVO)
+            // Verifica se a nota é do dia atual
+            const dataNota = new Date(nota.data).toLocaleDateString('pt-BR');
+            const hoje = new Date().toLocaleDateString('pt-BR');
+            
+            if (dataNota === hoje) {
+                // Remove a nota do relatório diário
+                relatorioDiario.totalVendas -= nota.total;
+                relatorioDiario.totalNotas -= 1;
+                
+                // Remove a venda do array de vendas do dia
+                relatorioDiario.vendas = relatorioDiario.vendas.filter(v => v.id !== id);
+                
+                // Salva as alterações no relatório diário
+                salvarRelatorioDiario();
+            }
             
             // RENUMERA todas as notas fiscais para manter a sequência
             renumerarNotasFiscais();
@@ -309,9 +490,14 @@ function excluirNotaFiscal(id) {
             // Salva as alterações
             salvarNotasFiscais();
             
-            // Atualiza a tabela
+            // Atualiza as visualizações
             atualizarTabelaNotas();
             atualizarRelatorios();
+            
+            // Se estiver na página de relatório diário, atualiza também
+            if (document.getElementById('pagina-relatorio-diario').classList.contains('d-none') === false) {
+                atualizarRelatorioDiario();
+            }
             
             alert("Nota excluída e sequência renumerada com sucesso!");
         } else {
@@ -331,10 +517,20 @@ function renumerarNotasFiscais() {
     });
 }
 
+// Função para renumerar todas as notas fiscais em ordem sequencial
+function renumerarNotasFiscais() {
+    // Ordena as notas por data de criação (mais antiga primeiro)
+    notasFiscais.sort((a, b) => new Date(a.data) - new Date(b.data));
+    
+    // Renumera sequencialmente a partir de 1
+    notasFiscais.forEach((nota, index) => {
+        nota.id = index + 1;
+    });
+}
 
 // Atualiza relatórios
 function atualizarRelatorios() {
-    // Usar as variáveis globais corretas
+    // Total geral (acumulado)
     const totalVendas = notasFiscais.reduce((acc, n) => acc + (n.total || 0), 0);
     document.getElementById("total-vendas").textContent = `R$ ${totalVendas.toFixed(2)}`;
     
@@ -477,84 +673,9 @@ function filtrarVendas() {
     atualizarVendasPorPeriodo();
 }
 
-// Mostra página inicial
-// Mostra página inicial
-function mostrarPaginaInicio() {
-    // Esconde todas as páginas
-    document.getElementById('pagina-notas').classList.add('d-none');
-    document.getElementById('pagina-relatorios').classList.add('d-none');
-    document.getElementById('pagina-lixeira').classList.add('d-none');
-    
-    // Mostra a página inicial
-    document.getElementById('pagina-inicio').classList.remove('d-none');
-    
-    // Atualiza navegação
-    document.getElementById('nav-inicio').classList.add('active');
-    document.getElementById('nav-notas').classList.remove('active');
-    document.getElementById('nav-relatorios').classList.remove('active');
-    document.getElementById('nav-lixeira').classList.remove('active');
-}
-
-// Mostra página de notas fiscais
-function mostrarPaginaNotas() {
-    // Esconde todas as páginas
-    document.getElementById('pagina-inicio').classList.add('d-none');
-    document.getElementById('pagina-relatorios').classList.add('d-none');
-    document.getElementById('pagina-lixeira').classList.add('d-none');
-    
-    // Mostra a página de notas
-    document.getElementById('pagina-notas').classList.remove('d-none');
-    
-    // Atualiza navegação
-    document.getElementById('nav-inicio').classList.remove('active');
-    document.getElementById('nav-notas').classList.add('active');
-    document.getElementById('nav-relatorios').classList.remove('active');
-    document.getElementById('nav-lixeira').classList.remove('active');
-    
-    atualizarTabelaNotas();
-}
-
-// Mostra página de relatórios
-function mostrarPaginaRelatorios() {
-    // Esconde todas as páginas
-    document.getElementById('pagina-inicio').classList.add('d-none');
-    document.getElementById('pagina-notas').classList.add('d-none');
-    document.getElementById('pagina-lixeira').classList.add('d-none');
-    
-    // Mostra a página de relatórios
-    document.getElementById('pagina-relatorios').classList.remove('d-none');
-    
-    // Atualiza navegação
-    document.getElementById('nav-inicio').classList.remove('active');
-    document.getElementById('nav-notas').classList.remove('active');
-    document.getElementById('nav-relatorios').classList.add('active');
-    document.getElementById('nav-lixeira').classList.remove('active');
-    
-    atualizarRelatorios();
-}
-
-// Mostra página lixeira
-function mostrarPaginaLixeira() {
-    // Esconde todas as páginas
-    document.getElementById('pagina-inicio').classList.add('d-none');
-    document.getElementById('pagina-notas').classList.add('d-none');
-    document.getElementById('pagina-relatorios').classList.add('d-none');
-    
-    // Mostra a página da lixeira
-    document.getElementById('pagina-lixeira').classList.remove('d-none');
-    
-    // Atualiza navegação
-    document.getElementById('nav-inicio').classList.remove('active');
-    document.getElementById('nav-notas').classList.remove('active');
-    document.getElementById('nav-relatorios').classList.remove('active');
-    document.getElementById('nav-lixeira').classList.add('active');
-    
-    atualizarTabelaLixeira();
-}
-
 // Volta para a página inicial
 function voltarParaInicio() {
-    mostrarPaginaInicio();
+    mostrarPagina('inicio');
 }
 
 // ---------------- Funções de gerenciamento de produtos ----------------
@@ -677,15 +798,16 @@ function updateCartDisplay() {
     cartTotalValue.textContent = total.toFixed(2).replace('.', ',');
 }
 
-
-// Função para finalizar a venda - SEM CPF/CNPJ
+// Função para finalizar a venda - COM RELATÓRIO DIÁRIO
 function finalizarVenda() {
     if (cart.length === 0) {
         alert("Carrinho vazio!");
         return;
     }
 
-    // 🔹 Perguntar apenas o nome do cliente (CPF/CNPJ removido)
+    // Verifica se precisa resetar o relatório diário
+    verificarResetDiario();
+
     const cliente = prompt("Digite o nome do cliente (opcional):");
 
     let total = 0;
@@ -695,14 +817,12 @@ function finalizarVenda() {
         total += price * quantity;
     });
 
-    // Calcula o próximo ID baseado na quantidade atual de notas
     const proximoId = notasFiscais.length > 0 ? Math.max(...notasFiscais.map(n => n.id)) + 1 : 1;
 
     const novaNota = {
         id: proximoId,
         data: new Date().toISOString(),
-        cliente: cliente || 'Consumidor não identificado', // Cliente opcional
-        documento: null, // Removido o CPF/CNPJ
+        cliente: cliente || 'Consumidor não identificado',
         itens: [...cart],
         total: total
     };
@@ -710,12 +830,24 @@ function finalizarVenda() {
     notasFiscais.push(novaNota);
     salvarNotasFiscais();
 
+    // ATUALIZA RELATÓRIO DIÁRIO
+    relatorioDiario.totalVendas += total;
+    relatorioDiario.totalNotas += 1;
+    relatorioDiario.vendas.push({
+        id: proximoId,
+        hora: new Date().toLocaleTimeString('pt-BR'),
+        total: total,
+        itens: cart.length
+    });
+    salvarRelatorioDiario();
+
     // Atualizar estoque dos produtos vendidos
     cart.forEach(item => {
         const produto = produtos.find(p => p.id === item.id);
         if (produto) {
             const quantidadeVendida = Number(item.quantity) || 0;
             produto.quantidade -= quantidadeVendida;
+            if (produto.quantidade < 0) produto.quantidade = 0;
         }
     });
     
@@ -730,7 +862,7 @@ function finalizarVenda() {
     atualizarRelatorios();
     updateCartDisplay();
 
-    alert("Venda finalizada e nota registrada com número: " + proximoId);
+    alert("Venda finalizada! Nº: " + proximoId + " | Hoje: R$ " + relatorioDiario.totalVendas.toFixed(2));
 }
 
 // Função para adicionar produto
@@ -761,7 +893,6 @@ function adicionarProduto() {
 }
 
 // Função para mover produto para a lixeira
-// Função para mover produto para a lixeira - VERIFICAR
 function moverParaLixeira(id) {
     if (confirm("Deseja realmente enviar este produto para a lixeira?")) {
         const produtoIndex = produtos.findIndex(p => p.id === id);
@@ -791,16 +922,8 @@ function moverParaLixeira(id) {
         }
     }
 }
-// No início da função restaurarProduto
-console.log("Restaurando produto ID:", id);
-console.log("Lixeira atual:", lixeira);
-console.log("Produtos atuais:", produtos);
 
-// No início da função visualizarNota
-console.log("Visualizando nota ID:", id);
-console.log("Todas as notas:", notasFiscais);
 // Restaurar produto da lixeira
-// Restaurar produto da lixeira - VERSÃO CORRIGIDA
 function restaurarProduto(id) {
     // Encontra o produto na lixeira
     const produtoIndex = lixeira.findIndex(p => p.id === id);
@@ -846,8 +969,7 @@ function excluirPermanentemente(id) {
     }
 }
 
-
-// Visualizar nota fiscal - SEM CPF/CNPJ
+// Visualizar nota fiscal
 function visualizarNota(id) {
     console.log("Tentando visualizar nota:", id);
     
@@ -864,12 +986,11 @@ function visualizarNota(id) {
         ? nota.total.toFixed(2) 
         : '0.00';
 
-    // Preencher os dados da modal (CPF/CNPJ removido)
+    // Preencher os dados da modal
     document.getElementById("nota-numero").textContent = nota.id;
     document.getElementById("nota-id").textContent = nota.id;
     document.getElementById("nota-data").textContent = new Date(nota.data).toLocaleDateString('pt-BR');
     document.getElementById("nota-cliente").textContent = nota.cliente || "Não informado";
-    // REMOVIDO: document.getElementById("nota-documento").textContent = nota.documento || "Não informado";
     document.getElementById("nota-total").textContent = totalFormatado;
 
     // Preencher os itens da nota
