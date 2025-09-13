@@ -72,6 +72,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ---------------- Persistência de dados ----------------
 
+
+// Função para cancelar compra (zera o carrinho sem mexer no estoque)
+function cancelarCompra() {
+    if (cart.length === 0) {
+        alert('Não há itens no carrinho para cancelar.');
+        return;
+    }
+    
+    if (confirm('Tem certeza que deseja cancelar esta compra?')) {
+        cart = []; // esvazia o carrinho
+        updateCartDisplay(); // atualiza exibição do carrinho
+        alert('Compra cancelada com sucesso.');
+    }
+}
+
+
+// --- helpers para quantidade e parsing seguros (aceita vírgula ou ponto) ---
+function parseNumberInput(str) {
+    if (str === undefined || str === null) return 0;
+    if (typeof str === 'number') return str;
+    // aceita "0,5" ou "0.5"
+    return parseFloat(String(str).replace(',', '.')) || 0;
+}
+
+function formatQuantity(q) {
+    const num = Number(q) || 0;
+    // se inteiro, mostra como inteiro; se decimal, mostra com 2 casas e vírgula
+    if (Number.isInteger(num)) return String(num);
+    return num.toFixed(2).replace('.', ',');
+}
+
+
+
 // Função para migrar dados antigos (notas excluídas que ainda estão no relatório diário)
 function migrarDadosAntigos() {
     // Verifica se há notas fiscais no localStorage
@@ -301,6 +334,7 @@ function carregarCarrinho() {
 // ---------------- Atualização de visualizações ----------------
 
 // Atualiza tabela de produtos
+// Atualiza tabela de produtos
 function atualizarTabelaProdutos() {
     const tableBody = document.getElementById('products-table-body');
     tableBody.innerHTML = '';
@@ -315,6 +349,62 @@ function atualizarTabelaProdutos() {
         `;
         return;
     }
+    
+    produtosAtivos.forEach(produto => {
+        const row = document.createElement('tr');
+        row.className = 'product-row';
+        row.id = `product-${produto.id}`;
+        
+        // Determina a classe de estoque
+        let stockClass = 'good-stock';
+        if (Number(produto.quantidade) <= 5) stockClass = 'low-stock';
+        if (Number(produto.quantidade) > 15) stockClass = 'high-stock';
+        
+        row.innerHTML = `
+            <td>${produto.nome}</td>
+            <td>
+                <span class="badge ${produto.categoria === 'Alimentos' ? 'badge-alimentos' : produto.categoria === 'Limpeza' ? 'badge-limpeza' : 'badge-outros'}">
+                    ${produto.categoria || 'Sem categoria'}
+                </span>
+            </td>
+            <td>R$ <span class="product-price">${produto.preco.toFixed(2).replace('.', ',')}</span></td>
+            <td>
+                <span class="stock-cell ${stockClass}" id="stock-${produto.id}">${formatQuantity(produto.quantidade)}</span>
+            </td>
+            <td>
+                <div class="input-group input-group-sm" style="width: 120px;">
+                    <input type="number" class="form-control quantity-sale" value="0" min="0" step="0.01" max="${produto.quantidade}" data-produto-id="${produto.id}">
+                    <button class="btn btn-outline-primary" type="button" onclick="addToCart(${produto.id})">
+                        <i class="bi bi-cart-plus"></i>
+                    </button>
+                </div>
+            </td>
+            <td>
+                <div class="product-actions">
+                    <div class="input-group input-group-sm" style="width: 120px;">
+                        <input type="number" step="0.01" class="form-control" id="qtd-aumentar-${produto.id}" value="1" min="0.01">
+                        <button class="btn btn-outline-success" type="button" onclick="aumentarEstoque(${produto.id})">
+                            <i class="bi bi-plus-circle"></i>
+                        </button>
+                    </div>
+                    <div class="input-group input-group-sm" style="width: 120px;">
+                        <input type="number" step="0.01" class="form-control" id="qtd-diminuir-${produto.id}" value="1" min="0.01" max="${produto.quantidade}">
+                        <button class="btn btn-outline-warning" type="button" onclick="diminuirEstoque(${produto.id})">
+                            <i class="bi bi-dash-circle"></i>
+                        </button>
+                    </div>
+                    <button class="btn btn-outline-danger" type="button" onclick="moverParaLixeira(${produto.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        tableBody.appendChild(row);
+    });
+    filtrarProdutos();
+}
+
     
     produtosAtivos.forEach(produto => {
         const row = document.createElement('tr');
@@ -369,7 +459,7 @@ function atualizarTabelaProdutos() {
         tableBody.appendChild(row);
     });
     filtrarProdutos();
-}
+
 
 // Atualiza tabela da lixeira
 function atualizarTabelaLixeira() {
@@ -681,18 +771,40 @@ function voltarParaInicio() {
 // ---------------- Funções de gerenciamento de produtos ----------------
 
 // Função para aumentar o estoque
+// Função para aumentar o estoque (aceita fração)
 function aumentarEstoque(produtoId) {
     const input = document.getElementById('qtd-aumentar-' + produtoId);
-    const qtd = parseInt(input.value) || 1;
+    const qtd = parseNumberInput(input.value) || 0.01;
     const produto = produtos.find(p => p.id === produtoId);
     
     if (!produto) return;
     
-    produto.quantidade += qtd;
+    produto.quantidade = Number(produto.quantidade) + qtd;
     salvarProdutos();
     atualizarTabelaProdutos();
-    alert('Estoque aumentado em ' + qtd + ' unidades!');
+    alert('Estoque aumentado em ' + formatQuantity(qtd) + ' unidades!');
 }
+
+// Função para diminuir o estoque (aceita fração)
+function diminuirEstoque(produtoId) {
+    const input = document.getElementById('qtd-diminuir-' + produtoId);
+    const qtd = parseNumberInput(input.value) || 0.01;
+    const produto = produtos.find(p => p.id === produtoId);
+    
+    if (!produto) return;
+    
+    if (qtd > Number(produto.quantidade)) {
+        alert('Não é possível diminuir mais do que o estoque atual! Disponível: ' + formatQuantity(produto.quantidade));
+        return;
+    }
+    
+    produto.quantidade = Number(produto.quantidade) - qtd;
+    if (produto.quantidade < 0) produto.quantidade = 0;
+    salvarProdutos();
+    atualizarTabelaProdutos();
+    alert('Estoque diminuído em ' + formatQuantity(qtd) + ' unidades!');
+}
+
 
 // Função para diminuir o estoque
 function diminuirEstoque(produtoId) {
@@ -714,9 +826,11 @@ function diminuirEstoque(produtoId) {
 }
 
 // Função para adicionar produto ao carrinho
+// Função para adicionar produto ao carrinho (aceita frações)
 function addToCart(produtoId) {
     const input = document.querySelector('.quantity-sale[data-produto-id="' + produtoId + '"]');
-    const qtd = parseInt(input.value) || 0;
+    // usa parseNumberInput para aceitar "0,5" ou "0.5"
+    const qtd = parseNumberInput(input.value);
     const produto = produtos.find(p => p.id === produtoId);
     
     if (!produto) return;
@@ -726,8 +840,8 @@ function addToCart(produtoId) {
         return;
     }
     
-    if (qtd > produto.quantidade) {
-        alert('Não há estoque suficiente! Disponível: ' + produto.quantidade);
+    if (qtd > Number(produto.quantidade)) {
+        alert('Não há estoque suficiente! Disponível: ' + formatQuantity(produto.quantidade));
         return;
     }
     
@@ -736,7 +850,7 @@ function addToCart(produtoId) {
     
     if (existingItemIndex !== -1) {
         // Atualiza a quantidade se já estiver no carrinho
-        cart[existingItemIndex].quantity += qtd;
+        cart[existingItemIndex].quantity = Number(cart[existingItemIndex].quantity) + qtd;
     } else {
         // Adiciona novo item ao carrinho
         cart.push({
@@ -750,9 +864,10 @@ function addToCart(produtoId) {
     // Atualiza a exibição do carrinho
     updateCartDisplay();
     
-    alert('Adicionado ao carrinho: ' + qtd + 'x ' + produto.nome);
+    alert('Adicionado ao carrinho: ' + formatQuantity(qtd) + 'x ' + produto.nome);
     input.value = 0;
 }
+
 
 // Função para atualizar a exibição do carrinho
 function updateCartDisplay() {
@@ -781,18 +896,19 @@ function updateCartDisplay() {
     
     // Adiciona os itens
     cart.forEach(item => {
-        const itemTotal = item.price * item.quantity;
-        total += itemTotal;
-        
-        const cartItem = document.createElement('div');
-        cartItem.className = 'cart-item';
-        cartItem.innerHTML = `
-            <div>${item.quantity}x ${item.name}</div>
-            <div>R$ ${itemTotal.toFixed(2).replace('.', ',')}</div>
-        `;
-        
-        cartItemsList.appendChild(cartItem);
-    });
+    const itemTotal = item.price * item.quantity;
+    total += itemTotal;
+    
+    const cartItem = document.createElement('div');
+    cartItem.className = 'cart-item';
+    cartItem.innerHTML = `
+        <div>${formatQuantity(item.quantity)}x ${item.name}</div>
+        <div>R$ ${itemTotal.toFixed(2).replace('.', ',')}</div>
+    `;
+    
+    cartItemsList.appendChild(cartItem);
+});
+
     
     // Atualiza o total
     cartTotalValue.textContent = total.toFixed(2).replace('.', ',');
@@ -866,10 +982,11 @@ function finalizarVenda() {
 }
 
 // Função para adicionar produto
+// Função para adicionar produto (quantidade aceita decimais)
 function adicionarProduto() {
     const nome = (document.getElementById('nome').value || '').trim();
-    const preco = parseFloat(document.getElementById('preco').value);
-    const quantidade = parseInt(document.getElementById('quantidade').value);
+    const preco = parseNumberInput(document.getElementById('preco').value);
+    const quantidade = parseNumberInput(document.getElementById('quantidade').value);
     const categoria = document.getElementById('categoria').value;
 
     if (!nome || isNaN(preco) || preco <= 0 || isNaN(quantidade) || quantidade <= 0) {
@@ -891,6 +1008,7 @@ function adicionarProduto() {
     document.getElementById('novoProdutoForm').reset();
     alert('Produto adicionado com sucesso!');
 }
+
 
 // Função para mover produto para a lixeira
 function moverParaLixeira(id) {
@@ -1028,6 +1146,7 @@ function visualizarNota(id) {
         document.getElementById("notaFiscalModal").classList.add("show");
     }
 }
+
 
 // Imprime nota fiscal
 function imprimirNota() {

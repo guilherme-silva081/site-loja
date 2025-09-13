@@ -20,7 +20,7 @@ db.serialize(() => {
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
     preco REAL NOT NULL,
-    quantidade INTEGER NOT NULL,
+    quantidade REAL NOT NULL,
     categoria TEXT,
     ativo INTEGER DEFAULT 1
   )`);
