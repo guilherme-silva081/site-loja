@@ -72,6 +72,58 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ---------------- Persistência de dados ----------------
 
+function addToCart(product, quantity) {
+    // Verifica se já tem esse produto no carrinho
+    const existingItem = cart.find(item => item.id === product.id);
+    const totalSolicitado = (existingItem ? existingItem.quantity : 0) + quantity;
+
+    if (totalSolicitado > product.estoque) {
+        alert(`Quantidade indisponível! Estoque atual: ${product.estoque}`);
+        return;
+    }
+
+    if (existingItem) {
+        existingItem.quantity += quantity;
+    } else {
+        cart.push({ ...product, quantity });
+    }
+
+    updateCartDisplay();
+}
+
+
+// Edita quantidade ou remove item do carrinho
+function editarItemCarrinho(produtoId, acao) {
+    const itemIndex = cart.findIndex(i => i.id === produtoId);
+    if (itemIndex === -1) return;
+
+    const item = cart[itemIndex];
+
+    if (acao === 'aumentar') {
+        // Verifica se ainda há estoque
+        if (item.quantity < item.estoque) {
+            item.quantity += 1;
+        } else {
+            alert(`Não há mais estoque disponível para ${item.name}`);
+        }
+    } else if (acao === 'diminuir') {
+        if (item.quantity > 1) {
+            item.quantity -= 1;
+        } else {
+            if (confirm('Deseja remover este produto do carrinho?')) {
+                cart.splice(itemIndex, 1);
+            }
+        }
+    } else if (acao === 'remover') {
+        if (confirm('Tem certeza que deseja remover este produto do carrinho?')) {
+            cart.splice(itemIndex, 1);
+        }
+    }
+
+    updateCartDisplay();
+}
+
+
 
 // Função para cancelar compra (zera o carrinho sem mexer no estoque)
 function cancelarCompra() {
@@ -900,13 +952,18 @@ function updateCartDisplay() {
     total += itemTotal;
     
     const cartItem = document.createElement('div');
-    cartItem.className = 'cart-item';
-    cartItem.innerHTML = `
-        <div>${formatQuantity(item.quantity)}x ${item.name}</div>
-        <div>R$ ${itemTotal.toFixed(2).replace('.', ',')}</div>
-    `;
-    
-    cartItemsList.appendChild(cartItem);
+        cartItem.className = 'cart-item d-flex justify-content-between align-items-center mb-2';
+        cartItem.innerHTML = `
+            <div>
+                ${item.quantity}x ${item.name} - R$ ${itemTotal.toFixed(2).replace('.', ',')}
+            </div>
+            <div>
+                <button class="btn btn-sm btn-outline-primary me-1" onclick="editarItemCarrinho(${item.id}, 'aumentar')">+</button>
+                <button class="btn btn-sm btn-outline-warning me-1" onclick="editarItemCarrinho(${item.id}, 'diminuir')">-</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="editarItemCarrinho(${item.id}, 'remover')">X</button>
+            </div>
+        `;
+cartItemsList.appendChild(cartItem);
 });
 
     
