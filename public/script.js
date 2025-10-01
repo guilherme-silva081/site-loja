@@ -7,10 +7,17 @@ const JSONBIN_BIN_ID = '68dd5f7dae596e708f02ae70';
 const JSONBIN_API_KEY = '$2a$10$jzXMnTRGadrwyt.ghtHPuuxj1WSs6CNTFi98i.MREI5X/d6yBZ3By';
 const SERVER_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
 
+// ========== CONFIGURAÇÃO JSONBIN PARA DADOS DOS USUÁRIOS ==========
+const JSONBIN_DADOS_ID = '68dd7da843b1c97be9570e05'; // NOVO BIN para dados
+const JSONBIN_DADOS_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_DADOS_ID;
+
 // Variáveis para controle de usuário e sincronização
 let currentUser = null;
 let isOnline = true;
 let syncInterval = null;
+
+// Estrutura para armazenar dados de todos os usuários
+let dadosUsuarios = {};
 
 // Verifica se há um usuário logado ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
@@ -68,6 +75,178 @@ function setupEventListeners() {
         e.preventDefault();
         mostrarPagina('relatorio-diario');
     });
+}
+
+// ========== SISTEMA DE SINCRONIZAÇÃO DE DADOS POR USUÁRIO ==========
+
+// Busca todos os dados dos usuários do JSONBin
+async function buscarDadosUsuarios() {
+    try {
+        const response = await fetch(JSONBIN_DADOS_URL + '/latest', {
+            method: 'GET',
+            headers: {
+                'X-Master-Key': JSONBIN_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            console.log('Criando nova estrutura de dados...');
+            return {};
+        }
+        
+        const data = await response.json();
+        return data.record || {};
+    } catch (error) {
+        console.error('Erro ao buscar dados:', error);
+        return {};
+    }
+}
+
+// Salva todos os dados dos usuários no JSONBin
+async function salvarDadosUsuarios() {
+    try {
+        const response = await fetch(JSONBIN_DADOS_URL, {
+            method: 'PUT',
+            headers: {
+                'X-Master-Key': JSONBIN_API_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(dadosUsuarios)
+        });
+        
+        return response.ok;
+    } catch (error) {
+        console.error('Erro ao salvar dados:', error);
+        return false;
+    }
+}
+
+// Salva os dados do usuário atual
+async function salvarDadosUsuarioAtual() {
+    if (!currentUser) return false;
+
+    const dadosUsuario = {
+        produtos: produtos,
+        lixeira: lixeira,
+        notasFiscais: notasFiscais,
+        relatorioDiario: relatorioDiario,
+        nextProductId: nextProductId,
+        nextNotaId: nextNotaId,
+        lastSync: new Date().toISOString()
+    };
+
+    // Atualiza na estrutura global
+    dadosUsuarios[currentUser.id] = dadosUsuario;
+    
+    // Salva no JSONBin
+    const sucesso = await salvarDadosUsuarios();
+    
+    if (sucesso) {
+        console.log('✅ Dados do usuário sincronizados!');
+        // Também salva localmente como backup
+        salvarDadosLocais();
+    }
+    
+    return sucesso;
+}
+
+// Carrega os dados do usuário atual
+async function carregarDadosUsuarioAtual() {
+    if (!currentUser) return false;
+
+    // Busca dados atualizados do JSONBin
+    await carregarDadosUsuariosRemotos();
+
+    const dadosUsuario = dadosUsuarios[currentUser.id];
+    
+    if (dadosUsuario) {
+        // Usa dados remotos (mais recentes)
+        aplicarDadosUsuario(dadosUsuario);
+        console.log('✅ Dados carregados do servidor');
+    } else {
+        // Se não tem dados remotos, tenta carregar locais
+        carregarDadosLocais();
+        console.log('ℹ️ Dados carregados localmente');
+    }
+    
+    return true;
+}
+
+// Aplica os dados do usuário no sistema
+function aplicarDadosUsuario(dados) {
+    if (dados.produtos) produtos = dados.produtos;
+    if (dados.lixeira) lixeira = dados.lixeira;
+    if (dados.notasFiscais) notasFiscais = dados.notasFiscais;
+    if (dados.relatorioDiario) relatorioDiario = dados.relatorioDiario;
+    if (dados.nextProductId) nextProductId = dados.nextProductId;
+    if (dados.nextNotaId) nextNotaId = dados.nextNotaId;
+    
+    // Atualiza a UI
+    atualizarTabelaProdutos();
+    atualizarTabelaNotas();
+    atualizarTabelaLixeira();
+    atualizarRelatorios();
+    updateCartDisplay();
+}
+
+// Carrega dados remotos de todos os usuários
+async function carregarDadosUsuariosRemotos() {
+    dadosUsuarios = await buscarDadosUsuarios();
+}
+
+// Salva dados localmente como backup
+function salvarDadosLocais() {
+    if (!currentUser) return;
+    
+    const data = {
+        produtos,
+        lixeira,
+        notasFiscais,
+        relatorioDiario,
+        nextProductId,
+        nextNotaId,
+        lastUpdate: new Date().toISOString()
+    };
+    
+    localStorage.setItem(`local_${currentUser.id}_data`, JSON.stringify(data));
+}
+
+// Carrega dados locais (quando offline)
+function carregarDadosLocais() {
+    if (!currentUser) return;
+    
+    const localData = localStorage.getItem(`local_${currentUser.id}_data`);
+    
+    if (localData) {
+        const data = JSON.parse(localData);
+        aplicarDadosUsuario(data);
+    } else {
+        // Se não há dados, inicializa para novo usuário
+        inicializarDadosNovoUsuario();
+    }
+}
+
+// Inicializa dados para novo usuário
+function inicializarDadosNovoUsuario() {
+    produtos = [];
+    lixeira = [];
+    notasFiscais = [];
+    relatorioDiario = {
+        data: new Date().toLocaleDateString('pt-BR'),
+        totalVendas: 0,
+        totalNotas: 0,
+        vendas: []
+    };
+    nextProductId = 1;
+    nextNotaId = 1;
+    
+    // Adiciona produtos de exemplo
+    carregarProdutosIniciais();
+    
+    // Salva os dados iniciais
+    salvarDadosUsuarioAtual();
+    salvarDadosLocais();
 }
 
 // ========== SISTEMA DE LOGIN GLOBAL COM JSONBIN ==========
@@ -226,7 +405,6 @@ async function salvarUsuarios(usuarios) {
 }
 
 // ========== FUNÇÃO PARA SAIR DO MODO DESENVOLVEDOR ==========
-// ========== FUNÇÃO PARA SAIR DO MODO DESENVOLVEDOR ==========
 function sairModoDesenvolvedor() {
     if (confirm('🚪 Sair do modo desenvolvedor?\n\nIsso irá remover seu acesso especial.')) {
         localStorage.removeItem('senhaDesenvolvedor');
@@ -282,9 +460,6 @@ function adicionarBotaoDesenvolvedor() {
         }
     }, 1000);
 }
-
-
-
 
 // ========== VERIFICAÇÃO DE DESENVOLVEDOR ==========
 function verificarSeEDesenvolvedor() {
@@ -360,8 +535,6 @@ async function verCadastros() {
         alert('❌ Erro ao carregar usuários.');
     }
 }
-
-
 
 // ========== LINK SECRETO PARA ATIVAR MODO DESENVOLVEDOR ==========
 function adicionarLinkSecreto() {
@@ -543,6 +716,9 @@ function showMainContent() {
         document.getElementById('user-name').textContent = currentUser.name;
     }
     
+    // Carrega dados sincronizados do usuário
+    carregarDadosUsuarioAtual();
+    
     // Inicia a sincronização periódica
     setupPeriodicSync();
     
@@ -552,8 +728,12 @@ function showMainContent() {
 
 // Configura a sincronização periódica
 function setupPeriodicSync() {
-    // Sincroniza a cada 2 minutos
-    syncInterval = setInterval(syncData, 120000);
+    // Sincroniza a cada 1 minuto
+    syncInterval = setInterval(async () => {
+        if (isOnline && currentUser) {
+            await salvarDadosUsuarioAtual();
+        }
+    }, 60000);
 }
 
 // Carrega os dados do usuário
@@ -953,6 +1133,8 @@ function atualizarRelatorioDiario() {
 function salvarRelatorioDiario() {
     localStorage.setItem('relatorioDiario', JSON.stringify(relatorioDiario));
     saveLocalData();
+    // Sincroniza com nuvem
+    salvarDadosUsuarioAtual();
 }
 
 // Função para carregar relatório diário
@@ -998,6 +1180,8 @@ function verificarResetDiario() {
 function salvarProdutos() {
     localStorage.setItem('produtos', JSON.stringify(produtos));
     saveLocalData();
+    // Sincroniza com nuvem
+    salvarDadosUsuarioAtual();
 }
 
 // Carrega produtos do localStorage, ou inicializa se não houver
@@ -1049,12 +1233,16 @@ function carregarNotasFiscais() {
 function salvarLixeira() {
     localStorage.setItem('lixeira', JSON.stringify(lixeira));
     saveLocalData();
+    // Sincroniza com nuvem
+    salvarDadosUsuarioAtual();
 }
 
 // Salva notas fiscais no localStorage
 function salvarNotasFiscais() {
     localStorage.setItem('notasFiscais', JSON.stringify(notasFiscais));
     saveLocalData();
+    // Sincroniza com nuvem
+    salvarDadosUsuarioAtual();
 }
 
 // Salva carrinho no localStorage
