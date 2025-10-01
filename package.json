@@ -9,14 +9,23 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
     "body-parser": "^2.2.0",
+    "cors": "^2.8.5",
     "express": "^5.1.0",
     "express-session": "^1.18.2",
     "sqlite3": "^5.1.7"
   },
   "engines": {
     "node": "22.x"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guilherme-silva081/site-loja.git"
+  },
+  "bugs": {
+    "url": "https://github.com/guilherme-silva081/site-loja/issues"
+  },
+  "homepage": "https://github.com/guilherme-silva081/site-loja#readme",
+  "description": ""
 }
