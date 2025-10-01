@@ -1642,6 +1642,9 @@ function aumentarEstoque(produtoId) {
     salvarProdutos();
     atualizarTabelaProdutos();
     alert('Estoque aumentado em ' + formatQuantity(qtd) + ' unidades!');
+    
+    // SINCRONIZAÇÃO ADICIONADA
+    salvarDadosUsuarioAtual();
 }
 
 // Função para diminuir o estoque (aceita fração)
@@ -1662,6 +1665,9 @@ function diminuirEstoque(produtoId) {
     salvarProdutos();
     atualizarTabelaProdutos();
     alert('Estoque diminuído em ' + formatQuantity(qtd) + ' unidades!');
+    
+    // SINCRONIZAÇÃO ADICIONADA
+    salvarDadosUsuarioAtual();
 }
 
 // Função para adicionar produto ao carrinho (aceita frações) - VERSÃO CORRIGIDA
@@ -1824,6 +1830,9 @@ function finalizarVenda() {
     updateCartDisplay();
 
     alert("Venda finalizada! Nº: " + proximoId + " | Hoje: R$ " + relatorioDiario.totalVendas.toFixed(2));
+    
+    // SINCRONIZAÇÃO ADICIONADA
+    salvarDadosUsuarioAtual();
 }
 
 // Função para adicionar produto (quantidade aceita decimais)
@@ -1851,6 +1860,9 @@ function adicionarProduto() {
     atualizarTabelaProdutos();
     document.getElementById('novoProdutoForm').reset();
     alert('Produto adicionado com sucesso!');
+    
+    // SINCRONIZAÇÃO ADICIONADA
+    salvarDadosUsuarioAtual();
 }
 
 // Função para mover produto para a lixeira
@@ -1880,6 +1892,9 @@ function moverParaLixeira(id) {
             atualizarTabelaProdutos();
             atualizarTabelaLixeira();
             alert("Produto movido para a lixeira!");
+            
+            // SINCRONIZAÇÃO ADICIONADA
+            salvarDadosUsuarioAtual();
         }
     }
 }
@@ -1916,6 +1931,9 @@ function restaurarProduto(id) {
         atualizarTabelaLixeira();
         
         alert("Produto restaurado com sucesso!");
+        
+        // SINCRONIZAÇÃO ADICIONADA
+        salvarDadosUsuarioAtual();
     }
 }
 
@@ -1927,6 +1945,9 @@ function excluirPermanentemente(id) {
         salvarLixeira();
         atualizarTabelaLixeira();
         alert("Produto excluído permanentemente!");
+        
+        // SINCRONIZAÇÃO ADICIONADA
+        salvarDadosUsuarioAtual();
     }
 }
 
