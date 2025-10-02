@@ -502,6 +502,7 @@ function ativarModoDesenvolvedor() {
 }
 
 // ========== FUNÇÃO PARA O DESENVOLVEDOR VER OS CADASTROS ==========
+// ========== FUNÇÃO PARA O DESENVOLVEDOR VER OS CADASTROS ==========
 async function verCadastros() {
     // Verifica novamente se é desenvolvedor
     if (!verificarSeEDesenvolvedor()) {
@@ -517,22 +518,522 @@ async function verCadastros() {
             return;
         }
         
-        let mensagem = '📊 USUÁRIOS CADASTRADOS:\n\n';
-        usuarios.forEach((usuario, index) => {
-            mensagem += `👤 ${usuario.nome}\n`;
-            mensagem += `   📧 ${usuario.email}\n`;
-            mensagem += `   🔑 ${usuario.senha}\n`;
-            mensagem += `   📅 ${new Date(usuario.dataCadastro).toLocaleDateString('pt-BR')}\n\n`;
-        });
-        
-        mensagem += `✅ Total: ${usuarios.length} usuário(s)`;
-        alert(mensagem);
+        // Cria uma modal para mostrar os usuários (em vez de alert)
+        criarModalUsuarios(usuarios);
         
         // Também mostra no console
         console.log('📋 Usuários cadastrados:', usuarios);
+        
     } catch (error) {
         console.error('Erro:', error);
         alert('❌ Erro ao carregar usuários.');
+    }
+}
+
+// ========== MODAL PARA VISUALIZAR USUÁRIOS ==========
+// ========== MODAL PARA VISUALIZAR USUÁRIOS ==========
+function criarModalUsuarios(usuarios) {
+    // Remove modal existente se houver
+    const modalExistente = document.getElementById('modalUsuarios');
+    if (modalExistente) {
+        modalExistente.remove();
+    }
+    
+    // Cria a modal
+    const modalHTML = `
+    <div class="modal fade" id="modalUsuarios" tabindex="-1" aria-labelledby="modalUsuariosLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="modalUsuariosLabel">
+                        📊 USUÁRIOS CADASTRADOS - Total: ${usuarios.length}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Nome</th>
+                                    <th>Email</th>
+                                    <th>Senha</th>
+                                    <th>Data Cadastro</th>
+                                    <th>ID</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${usuarios.map((usuario, index) => `
+                                    <tr>
+                                        <td><strong>${index + 1}</strong></td>
+                                        <td>${usuario.nome || 'N/A'}</td>
+                                        <td>${usuario.email || 'N/A'}</td>
+                                        <td>
+                                            <span class="senha-cell" onclick="copiarSenha('${usuario.senha}')" title="Clique para copiar senha">
+                                                ${usuario.senha || 'N/A'}
+                                            </span>
+                                        </td>
+                                        <td>${new Date(usuario.dataCadastro).toLocaleDateString('pt-BR')}</td>
+                                        <td><small class="text-muted">${usuario.id}</small></td>
+                                        <td>
+                                            <button class="btn btn-danger btn-sm" onclick="excluirUsuario('${usuario.id}', '${usuario.nome}', '${usuario.email}')" title="Excluir usuário">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Estatísticas -->
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">📈 Estatísticas</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Total de usuários:</strong> ${usuarios.length}</p>
+                                    <p><strong>Primeiro cadastro:</strong> ${usuarios.length > 0 ? new Date(Math.min(...usuarios.map(u => new Date(u.dataCadastro)))).toLocaleDateString('pt-BR') : 'N/A'}</p>
+                                    <p><strong>Último cadastro:</strong> ${usuarios.length > 0 ? new Date(Math.max(...usuarios.map(u => new Date(u.dataCadastro)))).toLocaleDateString('pt-BR') : 'N/A'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">🔧 Ações</h6>
+                                </div>
+                                <div class="card-body">
+                                    <button class="btn btn-outline-primary btn-sm mb-2" onclick="exportarUsuariosCSV()">
+                                        📥 Exportar CSV
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm mb-2" onclick="copiarListaUsuarios()">
+                                        📋 Copiar Lista
+                                    </button>
+                                    <button class="btn btn-outline-info btn-sm mb-2" onclick="abrirJSONBin()">
+                                        🌐 Abrir JSONBin
+                                    </button>
+                                    <button class="btn btn-outline-warning btn-sm mb-2" onclick="limparDadosUsuarioAtual()">
+                                        🔄 Recarregar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-danger" onclick="limparTodosUsuarios()">
+                        🗑️ Limpar Todos (Cuidado!)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    `;
+    
+    // Adiciona a modal ao body
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Adiciona estilos CSS
+    const estilo = `
+        <style>
+            .senha-cell {
+                cursor: pointer;
+                padding: 2px 6px;
+                border-radius: 3px;
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                font-family: 'Courier New', monospace;
+            }
+            .senha-cell:hover {
+                background-color: #e9ecef;
+                border-color: #007bff;
+            }
+            .senha-cell:active {
+                background-color: #007bff;
+                color: white;
+            }
+        </style>
+    `;
+    document.head.insertAdjacentHTML('beforeend', estilo);
+    
+    // Mostra a modal
+    const modal = new bootstrap.Modal(document.getElementById('modalUsuarios'));
+    modal.show();
+}
+
+// ========== EXCLUIR USUÁRIO INDIVIDUAL ==========
+async function excluirUsuario(usuarioId, usuarioNome, usuarioEmail) {
+    // Verificação de segurança EXTRA para desenvolvedor
+    if (!verificarSeEDesenvolvedor()) {
+        alert('❌ ACESSO NEGADO!\n\nApenas o desenvolvedor pode excluir usuários.');
+        return;
+    }
+    
+    const usuarioAtual = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    
+    // Verifica se está tentando excluir a si mesmo
+    if (usuarioAtual.id === usuarioId) {
+        alert('❌ Você não pode excluir sua própria conta enquanto está logado!\n\nFaça logout primeiro ou use outra conta de desenvolvedor.');
+        return;
+    }
+    
+    // Confirmação de exclusão
+    const confirmacao = confirm(`🚨 EXCLUIR USUÁRIO\n\nNome: ${usuarioNome}\nEmail: ${usuarioEmail}\nID: ${usuarioId}\n\n⚠️ Esta ação NÃO PODE ser desfeita!\n\nDeseja continuar?`);
+    
+    if (!confirmacao) {
+        return;
+    }
+    
+    // Confirmação FINAL
+    const confirmacaoFinal = confirm(`⚠️ CONFIRMAÇÃO FINAL ⚠️\n\nVocê está excluindo permanentemente:\n\n"${usuarioNome}" (${usuarioEmail})\n\nEsta ação REMOVERÁ TODOS os dados deste usuário!\n\nContinuar?`);
+    
+    if (!confirmacaoFinal) {
+        return;
+    }
+    
+    try {
+        // Mostrar loading
+        const botao = event.target;
+        const originalHTML = botao.innerHTML;
+        botao.innerHTML = '<i class="bi bi-arrow-repeat spinner"></i>';
+        botao.disabled = true;
+        
+        // Busca usuários atuais
+        const usuarios = await buscarUsuarios();
+        
+        // Encontra e remove o usuário
+        const usuarioIndex = usuarios.findIndex(u => u.id === usuarioId);
+        
+        if (usuarioIndex === -1) {
+            alert('❌ Usuário não encontrado!');
+            botao.innerHTML = originalHTML;
+            botao.disabled = false;
+            return;
+        }
+        
+        // Remove o usuário do array
+        usuarios.splice(usuarioIndex, 1);
+        
+        // Salva no JSONBin
+        const sucesso = await salvarUsuarios(usuarios);
+        
+        if (sucesso) {
+            alert(`✅ Usuário "${usuarioNome}" excluído com sucesso!`);
+            
+            // Atualiza a modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
+            modal.hide();
+            
+            // Reabre a modal com a lista atualizada
+            setTimeout(() => {
+                verCadastros();
+            }, 500);
+            
+        } else {
+            alert('❌ Erro ao excluir usuário. Tente novamente.');
+            botao.innerHTML = originalHTML;
+            botao.disabled = false;
+        }
+        
+    } catch (error) {
+        console.error('Erro ao excluir usuário:', error);
+        alert('❌ Erro ao excluir usuário. Verifique a conexão.');
+        
+        // Restaura botão
+        const botao = event.target;
+        botao.innerHTML = '<i class="bi bi-trash"></i>';
+        botao.disabled = false;
+    }
+}
+
+// ========== LIMPAR DADOS DE UM USUÁRIO ESPECÍFICO ==========
+async function limparDadosUsuario(usuarioId, usuarioNome) {
+    if (!verificarSeEDesenvolvedor()) {
+        alert('❌ Acesso restrito ao desenvolvedor!');
+        return;
+    }
+    
+    const confirmacao = confirm(`🧹 LIMPAR DADOS DO USUÁRIO\n\nUsuário: ${usuarioNome}\nID: ${usuarioId}\n\nIsso irá remover TODOS os dados (produtos, notas, etc.) deste usuário.\n\nContinuar?`);
+    
+    if (!confirmacao) return;
+    
+    try {
+        // Busca dados atuais
+        await carregarDadosUsuariosRemotos();
+        
+        // Remove os dados do usuário
+        if (dadosUsuarios[usuarioId]) {
+            delete dadosUsuarios[usuarioId];
+            
+            // Salva no JSONBin
+            const sucesso = await salvarDadosUsuarios();
+            
+            if (sucesso) {
+                alert(`✅ Dados do usuário "${usuarioNome}" removidos com sucesso!`);
+            } else {
+                alert('❌ Erro ao remover dados do usuário.');
+            }
+        } else {
+            alert('ℹ️ Este usuário não possui dados salvos.');
+        }
+        
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('❌ Erro ao limpar dados do usuário.');
+    }
+}
+
+// ========== RECARREGAR DADOS ==========
+function limparDadosUsuarioAtual() {
+    if (!verificarSeEDesenvolvedor()) {
+        alert('❌ Acesso restrito ao desenvolvedor!');
+        return;
+    }
+    
+    if (confirm('🔄 Recarregar lista de usuários?\n\nIsso irá buscar os dados mais recentes do servidor.')) {
+        // Fecha a modal atual
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
+        if (modal) modal.hide();
+        
+        // Reabre a modal com dados atualizados
+        setTimeout(() => {
+            verCadastros();
+        }, 500);
+    }
+}
+
+// ========== LIMPAR TODOS OS USUÁRIOS ==========
+async function limparTodosUsuarios() {
+    if (!verificarSeEDesenvolvedor()) {
+        alert('❌ Acesso restrito ao desenvolvedor!');
+        return;
+    }
+    
+    // Verificação EXTRA de segurança
+    const usuarioAtual = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    
+    // Primeira confirmação
+    if (!confirm('🚨🚨🚨 ATENÇÃO! 🚨🚨🚨\n\nVocê está prestes a APAGAR TODOS OS USUÁRIOS CADASTRADOS!\n\n⚠️  Esta ação NÃO PODE ser desfeita!\n\n⚠️  Você NÃO poderá excluir sua própria conta logada.\n\nContinuar?')) {
+        return;
+    }
+    
+    // Segunda confirmação
+    if (!confirm('⚠️ CONFIRMAÇÃO FINAL ⚠️\n\nDigite "CONFIRMAR" para apagar todos os usuários:')) {
+        return;
+    }
+    
+    const confirmacao = prompt('Digite "CONFIRMAR" para prosseguir:');
+    if (confirmacao !== 'CONFIRMAR') {
+        alert('❌ Ação cancelada.');
+        return;
+    }
+    
+    try {
+        const usuarios = await buscarUsuarios();
+        
+        // Filtra para não excluir o usuário atual
+        const usuariosParaManter = usuarios.filter(u => u.id === usuarioAtual.id);
+        
+        const sucesso = await salvarUsuarios(usuariosParaManter);
+        
+        if (sucesso) {
+            if (usuariosParaManter.length > 0) {
+                alert(`✅ Todos os usuários foram removidos, exceto sua conta (${usuarioAtual.name})!`);
+            } else {
+                alert('✅ Todos os usuários foram removidos!');
+            }
+            
+            // Fecha a modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
+            modal.hide();
+        } else {
+            alert('❌ Erro ao remover usuários.');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('❌ Erro ao remover usuários.');
+    }
+}// ========== LIMPAR TODOS OS USUÁRIOS ==========
+async function limparTodosUsuarios() {
+    if (!verificarSeEDesenvolvedor()) {
+        alert('❌ Acesso restrito ao desenvolvedor!');
+        return;
+    }
+    
+    // Verificação EXTRA de segurança
+    const usuarioAtual = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    
+    // Primeira confirmação
+    if (!confirm('🚨🚨🚨 ATENÇÃO! 🚨🚨🚨\n\nVocê está prestes a APAGAR TODOS OS USUÁRIOS CADASTRADOS!\n\n⚠️  Esta ação NÃO PODE ser desfeita!\n\n⚠️  Você NÃO poderá excluir sua própria conta logada.\n\nContinuar?')) {
+        return;
+    }
+    
+    // Segunda confirmação
+    if (!confirm('⚠️ CONFIRMAÇÃO FINAL ⚠️\n\nDigite "CONFIRMAR" para apagar todos os usuários:')) {
+        return;
+    }
+    
+    const confirmacao = prompt('Digite "CONFIRMAR" para prosseguir:');
+    if (confirmacao !== 'CONFIRMAR') {
+        alert('❌ Ação cancelada.');
+        return;
+    }
+    
+    try {
+        const usuarios = await buscarUsuarios();
+        
+        // Filtra para não excluir o usuário atual
+        const usuariosParaManter = usuarios.filter(u => u.id === usuarioAtual.id);
+        
+        const sucesso = await salvarUsuarios(usuariosParaManter);
+        
+        if (sucesso) {
+            if (usuariosParaManter.length > 0) {
+                alert(`✅ Todos os usuários foram removidos, exceto sua conta (${usuarioAtual.name})!`);
+            } else {
+                alert('✅ Todos os usuários foram removidos!');
+            }
+            
+            // Fecha a modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
+            modal.hide();
+        } else {
+            alert('❌ Erro ao remover usuários.');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('❌ Erro ao remover usuários.');
+    }
+}
+
+// Copiar senha individual
+function copiarSenha(senha) {
+    navigator.clipboard.writeText(senha).then(() => {
+        // Feedback visual
+        const elemento = event.target;
+        const originalText = elemento.textContent;
+        elemento.textContent = '✅ Copiado!';
+        elemento.style.backgroundColor = '#d4edda';
+        elemento.style.borderColor = '#c3e6cb';
+        
+        setTimeout(() => {
+            elemento.textContent = originalText;
+            elemento.style.backgroundColor = '';
+            elemento.style.borderColor = '';
+        }, 1500);
+    });
+}
+
+// Copiar lista completa de usuários
+function copiarListaUsuarios() {
+    const usuarios = JSON.parse(localStorage.getItem('usuariosCache') || '[]');
+    let texto = '📊 LISTA DE USUÁRIOS CADASTRADOS\n\n';
+    
+    usuarios.forEach((usuario, index) => {
+        texto += `👤 ${usuario.nome}\n`;
+        texto += `   📧 ${usuario.email}\n`;
+        texto += `   🔑 ${usuario.senha}\n`;
+        texto += `   📅 ${new Date(usuario.dataCadastro).toLocaleDateString('pt-BR')}\n`;
+        texto += `   🆔 ${usuario.id}\n\n`;
+    });
+    
+    texto += `✅ Total: ${usuarios.length} usuário(s)`;
+    
+    navigator.clipboard.writeText(texto).then(() => {
+        alert('✅ Lista de usuários copiada para a área de transferência!');
+    });
+}
+
+// Exportar para CSV
+function exportarUsuariosCSV() {
+    const usuarios = JSON.parse(localStorage.getItem('usuariosCache') || '[]');
+    
+    let csv = 'Nome,Email,Senha,DataCadastro,ID\n';
+    
+    usuarios.forEach(usuario => {
+        csv += `"${usuario.nome || ''}","${usuario.email || ''}","${usuario.senha || ''}","${new Date(usuario.dataCadastro).toLocaleDateString('pt-BR')}","${usuario.id}"\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `usuarios_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    alert('✅ Arquivo CSV gerado com sucesso!');
+}
+
+// Abrir JSONBin no navegador
+function abrirJSONBin() {
+    window.open(`https://jsonbin.io/${JSONBIN_BIN_ID}`, '_blank');
+}
+
+// Limpar todos os usuários (FUNÇÃO PERIGOSA - APENAS PARA DESENVOLVEDOR)
+async function limparTodosUsuarios() {
+    if (!confirm('🚨🚨🚨 ATENÇÃO! 🚨🚨🚨\n\nVocê está prestes a APAGAR TODOS OS USUÁRIOS CADASTRADOS!\n\nEsta ação NÃO PODE ser desfeita!\n\nTem certeza absoluta?')) {
+        return;
+    }
+    
+    if (!confirm('⚠️ CONFIRMAÇÃO FINAL ⚠️\n\nDigite "CONFIRMAR" para apagar todos os usuários:')) {
+        return;
+    }
+    
+    const confirmacao = prompt('Digite "CONFIRMAR" para prosseguir:');
+    if (confirmacao !== 'CONFIRMAR') {
+        alert('❌ Ação cancelada.');
+        return;
+    }
+    
+    try {
+        const sucesso = await salvarUsuarios([]);
+        
+        if (sucesso) {
+            alert('✅ Todos os usuários foram removidos!');
+            // Fecha a modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
+            modal.hide();
+        } else {
+            alert('❌ Erro ao remover usuários.');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('❌ Erro ao remover usuários.');
+    }
+}
+
+// ========== ATUALIZAR A FUNÇÃO buscarUsuarios PARA CACHE ==========
+async function buscarUsuarios() {
+    try {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+            method: 'GET',
+            headers: {
+                'X-Master-Key': JSONBIN_API_KEY,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Erro ao buscar dados');
+        }
+        
+        const data = await response.json();
+        const usuarios = data.record || [];
+        
+        // Salva no cache para usar na modal
+        localStorage.setItem('usuariosCache', JSON.stringify(usuarios));
+        
+        return usuarios;
+    } catch (error) {
+        console.error('Erro ao buscar usuários:', error);
+        return [];
     }
 }
 
