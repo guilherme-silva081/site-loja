@@ -122,55 +122,91 @@ async function salvarDadosUsuarios() {
     }
 }
 
-// Salva os dados do usuário atual
+// ========== SALVAR DADOS DO USUÁRIO ATUAL - VERSÃO CORRIGIDA ==========
 async function salvarDadosUsuarioAtual() {
-    if (!currentUser) return false;
-
-    const dadosUsuario = {
-        produtos: produtos,
-        lixeira: lixeira,
-        notasFiscais: notasFiscais,
-        relatorioDiario: relatorioDiario,
-        nextProductId: nextProductId,
-        nextNotaId: nextNotaId,
-        lastSync: new Date().toISOString()
-    };
-
-    // Atualiza na estrutura global
-    dadosUsuarios[currentUser.id] = dadosUsuario;
-    
-    // Salva no JSONBin
-    const sucesso = await salvarDadosUsuarios();
-    
-    if (sucesso) {
-        console.log('✅ Dados do usuário sincronizados!');
-        // Também salva localmente como backup
-        salvarDadosLocais();
+    if (!currentUser) {
+        console.log('❌ Nenhum usuário logado para salvar dados');
+        return false;
     }
+
+    console.log('💾 Salvando dados do usuário:', currentUser.id);
     
-    return sucesso;
+    try {
+        const dadosUsuario = {
+            produtos: produtos,
+            lixeira: lixeira,
+            notasFiscais: notasFiscais,
+            relatorioDiario: relatorioDiario,
+            nextProductId: nextProductId,
+            nextNotaId: nextNotaId,
+            lastSync: new Date().toISOString()
+        };
+
+        // Atualiza na estrutura global
+        dadosUsuarios[currentUser.id] = dadosUsuario;
+        
+        // Salva no JSONBin
+        console.log('☁️ Enviando para nuvem...');
+        const sucesso = await salvarDadosUsuarios();
+        
+        if (sucesso) {
+            console.log('✅ Dados do usuário sincronizados na nuvem!');
+            // Também salva localmente como backup
+            salvarDadosLocais();
+        } else {
+            console.log('❌ Falha ao salvar na nuvem, salvando localmente...');
+            salvarDadosLocais();
+        }
+        
+        return sucesso;
+    } catch (error) {
+        console.error('❌ Erro ao salvar dados:', error);
+        // Pelo menos salva localmente
+        salvarDadosLocais();
+        return false;
+    }
 }
 
-// Carrega os dados do usuário atual
+// ========== CARREGAR DADOS DO USUÁRIO ATUAL - VERSÃO CORRIGIDA ==========
 async function carregarDadosUsuarioAtual() {
     if (!currentUser) return false;
 
-    // Busca dados atualizados do JSONBin
-    await carregarDadosUsuariosRemotos();
-
-    const dadosUsuario = dadosUsuarios[currentUser.id];
+    console.log('🔄 Carregando dados do usuário:', currentUser.id);
     
-    if (dadosUsuario) {
-        // Usa dados remotos (mais recentes)
-        aplicarDadosUsuario(dadosUsuario);
-        console.log('✅ Dados carregados do servidor');
-    } else {
-        // Se não tem dados remotos, tenta carregar locais
+    try {
+        // SEMPRE busca dados atualizados do JSONBin primeiro
+        await carregarDadosUsuariosRemotos();
+        
+        const dadosUsuario = dadosUsuarios[currentUser.id];
+        
+        if (dadosUsuario && dadosUsuario.produtos) {
+            // Usa dados remotos (mais recentes)
+            console.log('✅ Dados encontrados na nuvem, aplicando...');
+            aplicarDadosUsuario(dadosUsuario);
+            console.log('✅ Dados carregados do servidor');
+            
+            // Salva localmente como backup
+            salvarDadosLocais();
+        } else {
+            // Se não tem dados remotos, tenta carregar locais
+            console.log('ℹ️ Nenhum dado na nuvem, tentando local...');
+            carregarDadosLocais();
+            console.log('ℹ️ Dados carregados localmente');
+            
+            // Se tem dados locais, sincroniza com nuvem
+            if (produtos.length > 0) {
+                console.log('🔼 Sincronizando dados locais com nuvem...');
+                await salvarDadosUsuarioAtual();
+            }
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Erro ao carregar dados:', error);
+        // Fallback para dados locais
         carregarDadosLocais();
-        console.log('ℹ️ Dados carregados localmente');
+        return false;
     }
-    
-    return true;
 }
 
 // Aplica os dados do usuário no sistema
@@ -1228,13 +1264,86 @@ function showMainContent() {
 }
 
 // Configura a sincronização periódica
+// Configura a sincronização periódica - VERSÃO MELHORADA
 function setupPeriodicSync() {
-    // Sincroniza a cada 1 minuto
+    // Sincroniza a cada 30 segundos (mais frequente)
     syncInterval = setInterval(async () => {
         if (isOnline && currentUser) {
+            console.log('🔄 Sincronização periódica...');
             await salvarDadosUsuarioAtual();
         }
-    }, 60000);
+    }, 30000); // 30 segundos
+}
+
+// ========== BOTÃO DE SINCRONIZAÇÃO MANUAL ==========
+function adicionarBotaoSincronizacao() {
+    setTimeout(() => {
+        if (currentUser) {
+            const botaoSync = document.createElement('button');
+            botaoSync.innerHTML = '🔄 Sincronizar';
+            botaoSync.className = 'btn btn-info btn-sm';
+            botaoSync.onclick = sincronizarManual;
+            botaoSync.style.position = 'fixed';
+            botaoSync.style.bottom = '100px';
+            botaoSync.style.right = '20px';
+            botaoSync.style.zIndex = '9999';
+            botaoSync.style.fontSize = '12px';
+            botaoSync.style.padding = '5px 10px';
+            botaoSync.id = 'botao-sincronizar';
+            document.body.appendChild(botaoSync);
+        }
+    }, 2000);
+}
+
+// Função de sincronização manual
+async function sincronizarManual() {
+    if (!currentUser) return;
+    
+    const botao = document.getElementById('botao-sincronizar');
+    const originalText = botao.innerHTML;
+    botao.innerHTML = '⏳ Sincronizando...';
+    botao.disabled = true;
+    
+    try {
+        // Primeiro busca dados atualizados
+        await carregarDadosUsuarioAtual();
+        
+        // Depois salva (para garantir que está sincronizado)
+        await salvarDadosUsuarioAtual();
+        
+        botao.innerHTML = '✅ Sincronizado!';
+        setTimeout(() => {
+            botao.innerHTML = originalText;
+            botao.disabled = false;
+        }, 2000);
+        
+        alert('✅ Dados sincronizados entre todos os dispositivos!');
+    } catch (error) {
+        console.error('Erro na sincronização:', error);
+        botao.innerHTML = '❌ Erro';
+        setTimeout(() => {
+            botao.innerHTML = originalText;
+            botao.disabled = false;
+        }, 2000);
+        alert('❌ Erro na sincronização. Verifique sua conexão.');
+    }
+}
+
+// Adicione esta chamada no DOMContentLoaded:
+document.addEventListener('DOMContentLoaded', function() {
+    // ... código existente ...
+    adicionarBotaoSincronizacao(); // ← ADICIONE ESTA LINHA
+});
+
+// ========== VERIFICAR CONFLITOS DE SINCRONIZAÇÃO ==========
+function verificarConflitosSincronizacao(dadosRemotos, dadosLocais) {
+    if (!dadosRemotos || !dadosLocais) return 'remotos'; // Preferência por dados remotos
+    
+    const remoteTime = new Date(dadosRemotos.lastSync || 0);
+    const localTime = new Date(dadosLocais.lastUpdate || 0);
+    
+    // Usa os dados mais recentes
+    return remoteTime > localTime ? 'remotos' : 'locais';
 }
 
 // Carrega os dados do usuário
@@ -2146,6 +2255,15 @@ function aumentarEstoque(produtoId) {
     
     // SINCRONIZAÇÃO ADICIONADA
     salvarDadosUsuarioAtual();
+
+    // ADICIONE ESTAS LINHAS:
+    salvarProdutos();
+    atualizarTabelaProdutos();
+    alert('Estoque aumentado em ' + formatQuantity(qtd) + ' unidades!');
+    
+    // SINCRONIZAÇÃO FORÇADA
+    salvarDadosUsuarioAtual();
+
 }
 
 // Função para diminuir o estoque (aceita fração)
@@ -2168,6 +2286,13 @@ function diminuirEstoque(produtoId) {
     alert('Estoque diminuído em ' + formatQuantity(qtd) + ' unidades!');
     
     // SINCRONIZAÇÃO ADICIONADA
+    salvarDadosUsuarioAtual();
+
+    salvarProdutos();
+    atualizarTabelaProdutos();
+    alert('Estoque diminuído em ' + formatQuantity(qtd) + ' unidades!');
+    
+    // SINCRONIZAÇÃO FORÇADA
     salvarDadosUsuarioAtual();
 }
 
@@ -2334,6 +2459,16 @@ function finalizarVenda() {
     
     // SINCRONIZAÇÃO ADICIONADA
     salvarDadosUsuarioAtual();
+
+     atualizarTabelaProdutos();
+    atualizarTabelaNotas();
+    atualizarRelatorios();
+    updateCartDisplay();
+
+    alert("Venda finalizada! Nº: " + proximoId + " | Hoje: R$ " + relatorioDiario.totalVendas.toFixed(2));
+    
+    // SINCRONIZAÇÃO FORÇADA
+    salvarDadosUsuarioAtual();
 }
 
 // Função para adicionar produto (quantidade aceita decimais)
@@ -2363,6 +2498,14 @@ function adicionarProduto() {
     alert('Produto adicionado com sucesso!');
     
     // SINCRONIZAÇÃO ADICIONADA
+    salvarDadosUsuarioAtual();
+
+    salvarProdutos();
+    atualizarTabelaProdutos();
+    document.getElementById('novoProdutoForm').reset();
+    alert('Produto adicionado com sucesso!');
+    
+    // SINCRONIZAÇÃO FORÇADA
     salvarDadosUsuarioAtual();
 }
 
