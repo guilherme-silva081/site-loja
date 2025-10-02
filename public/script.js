@@ -20,6 +20,7 @@ let syncInterval = null;
 let dadosUsuarios = {};
 
 // Verifica se há um usuário logado ao carregar a página
+// Verifica se há um usuário logado ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     checkAuthStatus();
     setupEventListeners();
@@ -28,8 +29,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Verifica periodicamente o status de conexão
     setInterval(checkOnlineStatus, 30000);
     
-    // Adiciona botão do desenvolvedor
+    // ADICIONE ESTAS LINHAS:
+    adicionarCSSMobile(); // ← CSS para mobile
     adicionarBotaoDesenvolvedor();
+    adicionarBotaoSincronizacao(); // ← Botão de sync
     adicionarLinkSecreto();
     
     // Testa a conexão com Google Sheets
@@ -458,41 +461,62 @@ function sairModoDesenvolvedor() {
 }
 
 // ========== BOTÃO DESENVOLVEDOR ==========
+// ========== BOTÃO DESENVOLVEDOR - VERSÃO MOBILE ==========
 function adicionarBotaoDesenvolvedor() {
     setTimeout(() => {
         // VERIFICA SE É O DESENVOLVEDOR
         const isDesenvolvedor = verificarSeEDesenvolvedor();
         
         if (isDesenvolvedor) {
+            // Remove botões existentes
+            const botaoExistente = document.getElementById('botao-desenvolvedor');
+            const botaoSairExistente = document.getElementById('botao-sair-desenvolvedor');
+            if (botaoExistente) botaoExistente.remove();
+            if (botaoSairExistente) botaoSairExistente.remove();
+            
             // Cria botão flutuante APENAS para o desenvolvedor
             const botao = document.createElement('button');
-            botao.innerHTML = '👁️ Ver Cadastros';
-            botao.className = 'btn btn-warning btn-sm';
+            botao.innerHTML = '👁️ Cadastros';
+            botao.className = 'btn btn-warning btn-sm btn-flutuante';
             botao.onclick = verCadastros;
-            botao.style.position = 'fixed';
-            botao.style.bottom = '20px';
-            botao.style.right = '20px';
-            botao.style.zIndex = '9999';
-            botao.style.fontSize = '12px';
-            botao.style.padding = '5px 10px';
             botao.id = 'botao-desenvolvedor';
+            
+            // Estilos para mobile
+            botao.style.position = 'fixed';
+            botao.style.bottom = '130px';
+            botao.style.right = '10px';
+            botao.style.zIndex = '10000';
+            botao.style.fontSize = '14px';
+            botao.style.padding = '10px 14px';
+            botao.style.borderRadius = '20px';
+            botao.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+            botao.style.border = '2px solid #fff';
+            botao.style.fontWeight = 'bold';
+            
             document.body.appendChild(botao);
             
             // SEMPRE adiciona botão para SAIR do modo desenvolvedor
             const botaoSair = document.createElement('button');
             botaoSair.innerHTML = '🚪 Sair Dev';
-            botaoSair.className = 'btn btn-danger btn-sm';
+            botaoSair.className = 'btn btn-danger btn-sm btn-flutuante';
             botaoSair.onclick = sairModoDesenvolvedor;
-            botaoSair.style.position = 'fixed';
-            botaoSair.style.bottom = '60px';
-            botaoSair.style.right = '20px';
-            botaoSair.style.zIndex = '9999';
-            botaoSair.style.fontSize = '10px';
-            botaoSair.style.padding = '3px 8px';
             botaoSair.id = 'botao-sair-desenvolvedor';
+            
+            // Estilos para mobile
+            botaoSair.style.position = 'fixed';
+            botaoSair.style.bottom = '180px';
+            botaoSair.style.right = '10px';
+            botaoSair.style.zIndex = '10000';
+            botaoSair.style.fontSize = '12px';
+            botaoSair.style.padding = '8px 12px';
+            botaoSair.style.borderRadius = '20px';
+            botaoSair.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+            botaoSair.style.border = '2px solid #fff';
+            botaoSair.style.fontWeight = 'bold';
+            
             document.body.appendChild(botaoSair);
             
-            console.log('✅ Botões do desenvolvedor adicionados!');
+            console.log('✅ Botões do desenvolvedor adicionados (mobile)!');
         }
     }, 1000);
 }
@@ -1276,23 +1300,91 @@ function setupPeriodicSync() {
 }
 
 // ========== BOTÃO DE SINCRONIZAÇÃO MANUAL ==========
+// ========== BOTÃO DE SINCRONIZAÇÃO MANUAL - VERSÃO MOBILE ==========
 function adicionarBotaoSincronizacao() {
     setTimeout(() => {
         if (currentUser) {
+            // Remove botão existente se houver
+            const botaoExistente = document.getElementById('botao-sincronizar');
+            if (botaoExistente) {
+                botaoExistente.remove();
+            }
+            
             const botaoSync = document.createElement('button');
-            botaoSync.innerHTML = '🔄 Sincronizar';
+            botaoSync.innerHTML = '🔄 Sync';
             botaoSync.className = 'btn btn-info btn-sm';
             botaoSync.onclick = sincronizarManual;
-            botaoSync.style.position = 'fixed';
-            botaoSync.style.bottom = '100px';
-            botaoSync.style.right = '20px';
-            botaoSync.style.zIndex = '9999';
-            botaoSync.style.fontSize = '12px';
-            botaoSync.style.padding = '5px 10px';
             botaoSync.id = 'botao-sincronizar';
+            
+            // ESTILOS OTIMIZADOS PARA MOBILE
+            botaoSync.style.position = 'fixed';
+            botaoSync.style.bottom = '80px'; // Ajustado para mobile
+            botaoSync.style.right = '10px'; // Ajustado para mobile
+            botaoSync.style.zIndex = '10000'; // Z-index mais alto
+            botaoSync.style.fontSize = '14px'; // Maior para mobile
+            botaoSync.style.padding = '8px 12px'; // Maior para toque
+            botaoSync.style.borderRadius = '20px'; // Arredondado
+            botaoSync.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)'; // Sombra para visibilidade
+            botaoSync.style.border = '2px solid #fff'; // Borda branca para contraste
+            
+            // Garantir que está visível em todos os dispositivos
+            botaoSync.style.background = '#17a2b8';
+            botaoSync.style.color = 'white';
+            botaoSync.style.fontWeight = 'bold';
+            
             document.body.appendChild(botaoSync);
+            console.log('✅ Botão de sincronização adicionado');
         }
-    }, 2000);
+    }, 3000); // Aumentei o tempo para garantir que o DOM esteja pronto
+}
+
+// Adicionar CSS para mobile
+function adicionarCSSMobile() {
+    const style = document.createElement('style');
+    style.innerHTML = `
+        /* Estilos específicos para mobile */
+        @media (max-width: 768px) {
+            #botao-sincronizar {
+                bottom: 70px !important;
+                right: 10px !important;
+                font-size: 16px !important;
+                padding: 12px 16px !important;
+                min-width: 70px;
+                min-height: 50px;
+            }
+            
+            #botao-desenvolvedor {
+                bottom: 130px !important;
+                right: 10px !important;
+                font-size: 14px !important;
+                padding: 10px 14px !important;
+            }
+            
+            #botao-sair-desenvolvedor {
+                bottom: 180px !important;
+                right: 10px !important;
+                font-size: 12px !important;
+                padding: 8px 12px !important;
+            }
+        }
+        
+        /* Garantir que os botões flutuantes não atrapalhem o conteúdo */
+        .btn-flutuante {
+            z-index: 10000 !important;
+            position: fixed !important;
+        }
+        
+        /* Melhorar toque em mobile */
+        @media (hover: none) and (pointer: coarse) {
+            #botao-sincronizar:active,
+            #botao-desenvolvedor:active,
+            #botao-sair-desenvolvedor:active {
+                transform: scale(0.95);
+                opacity: 0.8;
+            }
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 // Função de sincronização manual
@@ -2156,6 +2248,51 @@ function atualizarVendasPorCategoria() {
     });
 }
 
+// ========== VERIFICAR SE BOTÃO ESTÁ VISÍVEL ==========
+function verificarBotaoSync() {
+    setTimeout(() => {
+        const botaoSync = document.getElementById('botao-sincronizar');
+        if (botaoSync) {
+            console.log('✅ Botão sync encontrado no DOM');
+            console.log('📍 Posição:', botaoSync.getBoundingClientRect());
+            console.log('🎨 Estilos:', window.getComputedStyle(botaoSync));
+        } else {
+            console.log('❌ Botão sync NÃO encontrado no DOM');
+            // Tenta adicionar novamente
+            adicionarBotaoSincronizacao();
+        }
+    }, 5000);
+}
+
+// Chame esta função no DOMContentLoaded também:
+document.addEventListener('DOMContentLoaded', function() {
+    // ... código existente ...
+    setTimeout(verificarBotaoSync, 6000); // Verifica após 6 segundos
+});
+
+// ========== BOTÃO DE SINCRONIZAÇÃO NA NAVBAR ==========
+function adicionarBotaoSyncNavbar() {
+    // Procura a navbar
+    const navbar = document.querySelector('.navbar-nav');
+    if (navbar && currentUser) {
+        const itemSync = document.createElement('li');
+        itemSync.className = 'nav-item';
+        itemSync.innerHTML = `
+            <a class="nav-link" href="#" onclick="sincronizarManual(); return false;">
+                <i class="bi bi-arrow-repeat"></i> Sincronizar
+            </a>
+        `;
+        navbar.appendChild(itemSync);
+        console.log('✅ Botão sync adicionado na navbar');
+    }
+}
+
+// Adicione esta chamada também:
+document.addEventListener('DOMContentLoaded', function() {
+    // ... código existente ...
+    adicionarBotaoSyncNavbar(); // ← Botão na navbar como backup
+});
+
 // Atualiza vendas por período
 function atualizarVendasPorPeriodo() {
     const dataInicio = document.getElementById('data-inicio').value;
@@ -2265,6 +2402,8 @@ function aumentarEstoque(produtoId) {
     salvarDadosUsuarioAtual();
 
 }
+
+
 
 // Função para diminuir o estoque (aceita fração)
 function diminuirEstoque(produtoId) {
