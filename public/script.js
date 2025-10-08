@@ -19,7 +19,9 @@ let syncInterval = null;
 // Estrutura para armazenar dados de todos os usuários
 let dadosUsuarios = {};
 
-// Verifica se há um usuário logado ao carregar a página
+// ========== CONFIGURAÇÃO: CRIAR CONTA APENAS PARA DESENVOLVEDOR ==========
+const MODO_CRIAR_CONTA_DESENVOLVEDOR = true; // TRUE = Apenas desenvolvedor pode criar contas
+
 // Verifica se há um usuário logado ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
     checkAuthStatus();
@@ -35,9 +37,114 @@ document.addEventListener('DOMContentLoaded', function() {
     adicionarBotaoSincronizacao(); // ← Botão de sync
     adicionarLinkSecreto();
     
-    // Testa a conexão com Google Sheets
-    // testarConexaoGoogleSheets();
+    // Configura visibilidade do formulário de registro baseado no modo
+    configurarVisibilidadeRegistro();
 });
+
+// ========== CONFIGURAR VISIBILIDADE DO REGISTRO ==========
+function configurarVisibilidadeRegistro() {
+    const registerForm = document.getElementById('register-form');
+    const registerLink = document.querySelector('a[href="#"]');
+    const loginContainer = document.getElementById('login-container');
+    
+    if (MODO_CRIAR_CONTA_DESENVOLVEDOR && loginContainer) {
+        // Em vez de esconder, mostra uma mensagem informativa
+        if (registerLink) {
+            registerLink.innerHTML = '🔒 Criar Conta (Apenas Desenvolvedor)';
+            registerLink.style.color = '#ffc107';
+            registerLink.style.fontWeight = 'bold';
+        }
+        
+        console.log('🔒 Modo: Criar conta apenas para desenvolvedor');
+    }
+}
+
+// ========== FUNÇÃO REGISTER MODIFICADA ==========
+async function register() {
+    // VERIFICA SE É MODO DESENVOLVEDOR
+    if (MODO_CRIAR_CONTA_DESENVOLVEDOR && !verificarSeEDesenvolvedor()) {
+        alert('❌ CRIAÇÃO DE CONTA RESTRITA!\n\nApenas o desenvolvedor do sistema pode criar novas contas.\n\n');
+        return;
+    }
+
+    const name = document.getElementById('register-name').value;
+    const email = document.getElementById('register-email').value;
+    const password = document.getElementById('register-password').value;
+    const confirmPassword = document.getElementById('register-confirm-password').value;
+    
+    if (password !== confirmPassword) {
+        alert('As senhas não coincidem!');
+        return;
+    }
+
+    if (!name || !email || !password) {
+        alert('Preencha todos os campos!');
+        return;
+    }
+
+    // Mostra loading
+    const btn = document.querySelector('#register-form button[type="submit"]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat spinner"></i> Cadastrando...';
+    btn.disabled = true;
+
+    try {
+        const usuarios = await buscarUsuarios();
+        
+        // Verifica se email já existe
+        if (usuarios.some(user => user.email.toLowerCase() === email.toLowerCase())) {
+            alert('❌ Este email já está cadastrado!');
+            return;
+        }
+        
+        // Adiciona novo usuário
+        const novoUsuario = {
+            id: Date.now().toString(),
+            nome: name,
+            email: email,
+            senha: password,
+            dataCadastro: new Date().toISOString(),
+            criadoPor: currentUser ? currentUser.email : 'desenvolvedor' // Registra quem criou
+        };
+        
+        usuarios.push(novoUsuario);
+        
+        // Salva no JSONBin
+        const sucesso = await salvarUsuarios(usuarios);
+        
+        if (sucesso) {
+            alert('✅ Conta criada com sucesso! Agora você pode fazer login em qualquer dispositivo.');
+            showLoginForm();
+            
+            // Limpa o formulário
+            document.getElementById('register-name').value = '';
+            document.getElementById('register-email').value = '';
+            document.getElementById('register-password').value = '';
+            document.getElementById('register-confirm-password').value = '';
+        } else {
+            alert('❌ Erro ao salvar conta. Tente novamente.');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('❌ Erro ao criar conta. Tente novamente.');
+    } finally {
+        // Restaura botão
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+// ========== FUNÇÃO SHOW REGISTER FORM MODIFICADA ==========
+function showRegisterForm() {
+    // VERIFICA SE É MODO DESENVOLVEDOR
+    if (MODO_CRIAR_CONTA_DESENVOLVEDOR && !verificarSeEDesenvolvedor()) {
+        alert('🔒 ACESSO RESTRITO!\n\nA criação de novas contas está disponível apenas para o desenvolvedor do sistema.\n\nSe você precisa de uma conta, entre em contato com o administrador.\n\n (81) 98702-3658');
+        return;
+    }
+    
+    document.getElementById('login-form').classList.add('d-none');
+    document.getElementById('register-form').classList.remove('d-none');
+}
 
 // Configura os listeners de eventos
 function setupEventListeners() {
@@ -289,73 +396,6 @@ function inicializarDadosNovoUsuario() {
 }
 
 // ========== SISTEMA DE LOGIN GLOBAL COM JSONBIN ==========
-
-async function register() {
-    const name = document.getElementById('register-name').value;
-    const email = document.getElementById('register-email').value;
-    const password = document.getElementById('register-password').value;
-    const confirmPassword = document.getElementById('register-confirm-password').value;
-    
-    if (password !== confirmPassword) {
-        alert('As senhas não coincidem!');
-        return;
-    }
-
-    if (!name || !email || !password) {
-        alert('Preencha todos os campos!');
-        return;
-    }
-
-    // Mostra loading
-    const btn = document.querySelector('#register-form button[type="submit"]');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-arrow-repeat spinner"></i> Cadastrando...';
-    btn.disabled = true;
-
-    try {
-        const usuarios = await buscarUsuarios();
-        
-        // Verifica se email já existe
-        if (usuarios.some(user => user.email.toLowerCase() === email.toLowerCase())) {
-            alert('❌ Este email já está cadastrado!');
-            return;
-        }
-        
-        // Adiciona novo usuário
-        const novoUsuario = {
-            id: Date.now().toString(),
-            nome: name,
-            email: email,
-            senha: password,
-            dataCadastro: new Date().toISOString()
-        };
-        
-        usuarios.push(novoUsuario);
-        
-        // Salva no JSONBin
-        const sucesso = await salvarUsuarios(usuarios);
-        
-        if (sucesso) {
-            alert('✅ Conta criada com sucesso! Agora você pode fazer login em qualquer dispositivo.');
-            showLoginForm();
-            
-            // Limpa o formulário
-            document.getElementById('register-name').value = '';
-            document.getElementById('register-email').value = '';
-            document.getElementById('register-password').value = '';
-            document.getElementById('register-confirm-password').value = '';
-        } else {
-            alert('❌ Erro ao salvar conta. Tente novamente.');
-        }
-    } catch (error) {
-        console.error('Erro:', error);
-        alert('❌ Erro ao criar conta. Tente novamente.');
-    } finally {
-        // Restaura botão
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
-}
 
 async function login() {
     const email = document.getElementById('email').value;
@@ -1175,18 +1215,6 @@ function updateOnlineStatusUI() {
     }
 }
 
-// Mostra o formulário de registro
-function showRegisterForm() {
-    document.getElementById('login-form').classList.add('d-none');
-    document.getElementById('register-form').classList.remove('d-none');
-}
-
-// Mostra o formulário de login
-function showLoginForm() {
-    document.getElementById('register-form').classList.add('d-none');
-    document.getElementById('login-form').classList.remove('d-none');
-}
-
 // SOLUÇÃO FINAL - SEU GOOGLE FORMS (SEM CORS)
 // SOLUÇÃO FUNCIONAL - SEU GOOGLE FORMS
 function enviarParaGoogleSheets(nome, email, senha) {
@@ -1766,6 +1794,120 @@ function formatQuantity(q) {
     return num.toFixed(2).replace('.', ',');
 }
 
+// ========== FUNÇÃO PARA EDITAR NOME DO PRODUTO ==========
+function editarNomeProduto(produtoId) {
+    const produto = produtos.find(p => p.id === produtoId);
+    
+    if (!produto) {
+        alert('Produto não encontrado!');
+        return;
+    }
+
+    const novoNome = prompt('Digite o novo nome do produto:', produto.nome);
+    
+    if (novoNome && novoNome.trim() !== '') {
+        const nomeAntigo = produto.nome;
+        produto.nome = novoNome.trim();
+        
+        // Atualiza também o nome nos itens do carrinho se existir
+        cart.forEach(item => {
+            if (item.id === produtoId) {
+                item.name = novoNome.trim();
+            }
+        });
+        
+        // Atualiza também o nome nas notas fiscais
+        notasFiscais.forEach(nota => {
+            nota.itens.forEach(item => {
+                if (item.id === produtoId) {
+                    item.name = novoNome.trim();
+                }
+            });
+        });
+        
+        salvarProdutos();
+        salvarCarrinho();
+        salvarNotasFiscais();
+        atualizarTabelaProdutos();
+        updateCartDisplay();
+        
+        alert(`✅ Nome do produto alterado de "${nomeAntigo}" para "${novoNome}"`);
+        
+        // SINCRONIZAÇÃO
+        salvarDadosUsuarioAtual();
+    } else if (novoNome !== null) {
+        alert('❌ O nome do produto não pode ficar vazio!');
+    }
+}
+
+// ========== FUNÇÃO PARA EDITAR PREÇO DO PRODUTO ==========
+function editarPrecoProduto(produtoId) {
+    const produto = produtos.find(p => p.id === produtoId);
+    
+    if (!produto) {
+        alert('Produto não encontrado!');
+        return;
+    }
+
+    const novoPreco = prompt('Digite o novo preço do produto:', produto.preco);
+    const precoNumero = parseNumberInput(novoPreco);
+    
+    if (novoPreco !== null && !isNaN(precoNumero) && precoNumero > 0) {
+        const precoAntigo = produto.preco;
+        produto.preco = precoNumero;
+        
+        // Atualiza também o preço nos itens do carrinho se existir
+        cart.forEach(item => {
+            if (item.id === produtoId) {
+                item.price = precoNumero;
+            }
+        });
+        
+        salvarProdutos();
+        salvarCarrinho();
+        atualizarTabelaProdutos();
+        updateCartDisplay();
+        
+        alert(`✅ Preço do produto alterado de R$ ${precoAntigo.toFixed(2)} para R$ ${precoNumero.toFixed(2)}`);
+        
+        // SINCRONIZAÇÃO
+        salvarDadosUsuarioAtual();
+    } else if (novoPreco !== null) {
+        alert('❌ Digite um preço válido!');
+    }
+}
+
+// ========== FUNÇÃO PARA EDITAR CATEGORIA DO PRODUTO ==========
+function editarCategoriaProduto(produtoId) {
+    const produto = produtos.find(p => p.id === produtoId);
+    
+    if (!produto) {
+        alert('Produto não encontrado!');
+        return;
+    }
+
+    const categorias = ['Alimentos', 'Limpeza', 'Bebidas', 'Padaria', 'Hortifruti', 'Outros'];
+    const novaCategoria = prompt(
+        `Digite a nova categoria do produto (${categorias.join(', ')}):`, 
+        produto.categoria || 'Outros'
+    );
+    
+    if (novaCategoria && novaCategoria.trim() !== '') {
+        const categoriaAntiga = produto.categoria || 'Sem categoria';
+        produto.categoria = novaCategoria.trim();
+        
+        salvarProdutos();
+        atualizarTabelaProdutos();
+        
+        alert(`✅ Categoria do produto alterada de "${categoriaAntiga}" para "${novaCategoria}"`);
+        
+        // SINCRONIZAÇÃO
+        salvarDadosUsuarioAtual();
+    } else if (novaCategoria !== null) {
+        alert('❌ A categoria não pode ficar vazia!');
+    }
+}
+
 // Função para migrar dados antigos (notas excluídas que ainda estão no relatório diário)
 function migrarDadosAntigos() {
     // Verifica se há notas fiscais no localStorage
@@ -1973,7 +2115,7 @@ function atualizarTabelaProdutos() {
     if (produtosAtivos.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center py-4">Nenhum produto cadastrado.</td>
+                <td colspan="7" class="text-center py-4">Nenhum produto cadastrado.</td>
             </tr>
         `;
         return;
@@ -1990,13 +2132,21 @@ function atualizarTabelaProdutos() {
         if (Number(produto.quantidade) > 15) stockClass = 'high-stock';
         
         row.innerHTML = `
-            <td>${produto.nome}</td>
             <td>
-                <span class="badge ${produto.categoria === 'Alimentos' ? 'badge-alimentos' : produto.categoria === 'Limpeza' ? 'badge-limpeza' : 'badge-outros'}">
+                <span class="product-name-editable" onclick="editarNomeProduto(${produto.id})" title="Clique para editar nome">
+                    ${produto.nome}
+                </span>
+            </td>
+            <td>
+                <span class="badge ${produto.categoria === 'Alimentos' ? 'badge-alimentos' : produto.categoria === 'Limpeza' ? 'badge-limpeza' : 'badge-outros'}" onclick="editarCategoriaProduto(${produto.id})" title="Clique para editar categoria">
                     ${produto.categoria || 'Sem categoria'}
                 </span>
             </td>
-            <td>R$ <span class="product-price">${produto.preco.toFixed(2).replace('.', ',')}</span></td>
+            <td>
+                <span class="product-price-editable" onclick="editarPrecoProduto(${produto.id})" title="Clique para editar preço">
+                    R$ ${produto.preco.toFixed(2).replace('.', ',')}
+                </span>
+            </td>
             <td>
                 <span class="stock-cell ${stockClass}" id="stock-${produto.id}">${formatQuantity(produto.quantidade)}</span>
             </td>
@@ -2022,7 +2172,14 @@ function atualizarTabelaProdutos() {
                             <i class="bi bi-dash-circle"></i>
                         </button>
                     </div>
-                    <button class="btn btn-outline-danger" type="button" onclick="moverParaLixeira(${produto.id})">
+                </div>
+            </td>
+            <td>
+                <div class="btn-group">
+                    <button class="btn btn-outline-info btn-sm" onclick="editarNomeProduto(${produto.id})" title="Editar Nome">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="moverParaLixeira(${produto.id})" title="Mover para Lixeira">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
