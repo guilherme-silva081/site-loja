@@ -1338,8 +1338,8 @@ function adicionarBotaoSincronizacao() {
                 botaoExistente.remove();
             }
             
-            const botaoSync = document.createElement('button');
-            botaoSync.innerHTML = '🔄 Sync';
+            // const botaoSync = document.createElement('button');
+            // botaoSync.innerHTML = '🔄 Sync';
             botaoSync.className = 'btn btn-info btn-sm';
             botaoSync.onclick = sincronizarManual;
             botaoSync.id = 'botao-sincronizar';
