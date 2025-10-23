@@ -3,12 +3,12 @@
 const PLANILHA_URL = 'https://script.google.com/macros/s/AKfycbyo7xPPh1L2Lt4BPxWWuFKRNWa-yFN05wOjlf6u6xqMOVY7bxz0wTiaLoNuCI8Aydyd/exec';
 
 // ========== CONFIGURAÇÃO JSONBIN ==========
-const JSONBIN_BIN_ID = '68dd7da843b1c97be9570e05';
+const JSONBIN_BIN_ID = '68dd5f7dae596e708f02ae70';
 const JSONBIN_API_KEY = '$2a$10$aFREHvW92HywEO4fJDQyXu/R1H/bh1NamGIm9MRbsMKIxIUlZ8PFS';
 const SERVER_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
 
 // ========== CONFIGURAÇÃO JSONBIN PARA DADOS DOS USUÁRIOS ==========
-const JSONBIN_DADOS_ID = '68dd5f7dae596e708f02ae70'; // NOVO BIN para dados
+const JSONBIN_DADOS_ID = '68dd7da843b1c97be9570e05'; // NOVO BIN para dados
 const JSONBIN_DADOS_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_DADOS_ID;
 
 // Variáveis para controle de usuário e sincronização
