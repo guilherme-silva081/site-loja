@@ -1338,27 +1338,27 @@ function adicionarBotaoSincronizacao() {
                 botaoExistente.remove();
             }
             
-            // const botaoSync = document.createElement('button');
+            const botaoSync = document.createElement('button');
             // botaoSync.innerHTML = '🔄 Sync';
-            botaoSync.className = 'btn btn-info btn-sm';
-            botaoSync.onclick = sincronizarManual;
-            botaoSync.id = 'botao-sincronizar';
+            // botaoSync.className = 'btn btn-info btn-sm';
+            // botaoSync.onclick = sincronizarManual;
+            // botaoSync.id = 'botao-sincronizar';
             
             // ESTILOS OTIMIZADOS PARA MOBILE
-            botaoSync.style.position = 'fixed';
-            botaoSync.style.bottom = '80px'; // Ajustado para mobile
-            botaoSync.style.right = '10px'; // Ajustado para mobile
-            botaoSync.style.zIndex = '10000'; // Z-index mais alto
-            botaoSync.style.fontSize = '14px'; // Maior para mobile
-            botaoSync.style.padding = '8px 12px'; // Maior para toque
-            botaoSync.style.borderRadius = '20px'; // Arredondado
-            botaoSync.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)'; // Sombra para visibilidade
-            botaoSync.style.border = '2px solid #fff'; // Borda branca para contraste
+            // botaoSync.style.position = 'fixed';
+            // botaoSync.style.bottom = '80px'; // Ajustado para mobile
+            // botaoSync.style.right = '10px'; // Ajustado para mobile
+            // botaoSync.style.zIndex = '10000'; // Z-index mais alto
+            // botaoSync.style.fontSize = '14px'; // Maior para mobile
+            // botaoSync.style.padding = '8px 12px'; // Maior para toque
+            // botaoSync.style.borderRadius = '20px'; // Arredondado
+            // botaoSync.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)'; // Sombra para visibilidade
+            // botaoSync.style.border = '2px solid #fff'; // Borda branca para contraste
             
             // Garantir que está visível em todos os dispositivos
-            botaoSync.style.background = '#17a2b8';
-            botaoSync.style.color = 'white';
-            botaoSync.style.fontWeight = 'bold';
+            // botaoSync.style.background = '#17a2b8';
+            // botaoSync.style.color = 'white';
+            // botaoSync.style.fontWeight = 'bold';
             
             document.body.appendChild(botaoSync);
             console.log('✅ Botão de sincronização adicionado');
