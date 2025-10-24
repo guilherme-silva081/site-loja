@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Configura visibilidade do formulário de registro baseado no modo
     configurarVisibilidadeRegistro();
+
+    // ❌ REMOVIDO: migrarDadosAntigos() - não necessário no multi-usuário
+    // ❌ REMOVIDO: carregarProdutos(), carregarLixeira(), etc. - agora carregado via carregarDadosUsuarioAtual
 });
 
 // ========== CONFIGURAR VISIBILIDADE DO REGISTRO ==========
@@ -298,16 +301,14 @@ async function carregarDadosUsuarioAtual() {
             // Salva localmente como backup
             salvarDadosLocais();
         } else {
-            // Se não tem dados remotos, tenta carregar locais
-            console.log('ℹ️ Nenhum dado na nuvem, tentando local...');
-            carregarDadosLocais();
-            console.log('ℹ️ Dados carregados localmente');
+            // Se não tem dados remotos, inicializa dados vazios para novo usuário
+            console.log('ℹ️ Nenhum dado na nuvem para este usuário, inicializando dados vazios...');
+            inicializarDadosNovoUsuario();
+            console.log('ℹ️ Dados vazios inicializados para novo usuário');
             
-            // Se tem dados locais, sincroniza com nuvem
-            if (produtos.length > 0) {
-                console.log('🔼 Sincronizando dados locais com nuvem...');
-                await salvarDadosUsuarioAtual();
-            }
+            // Salva os dados vazios na nuvem
+            console.log('🔼 Salvando dados vazios na nuvem...');
+            await salvarDadosUsuarioAtual();
         }
         
         return true;
@@ -322,11 +323,27 @@ async function carregarDadosUsuarioAtual() {
 // Aplica os dados do usuário no sistema
 function aplicarDadosUsuario(dados) {
     if (dados.produtos) produtos = dados.produtos;
+    else produtos = []; // ✅ Se não tem produtos, inicia vazio
+
     if (dados.lixeira) lixeira = dados.lixeira;
+    else lixeira = [];
+
     if (dados.notasFiscais) notasFiscais = dados.notasFiscais;
+    else notasFiscais = [];
+
     if (dados.relatorioDiario) relatorioDiario = dados.relatorioDiario;
+    else relatorioDiario = {
+        data: new Date().toLocaleDateString('pt-BR'),
+        totalVendas: 0,
+        totalNotas: 0,
+        vendas: []
+    };
+
     if (dados.nextProductId) nextProductId = dados.nextProductId;
+    else nextProductId = 1;
+
     if (dados.nextNotaId) nextNotaId = dados.nextNotaId;
+    else nextNotaId = 1;
     
     // Atualiza a UI
     atualizarTabelaProdutos();
@@ -375,7 +392,9 @@ function carregarDadosLocais() {
 
 // Inicializa dados para novo usuário
 function inicializarDadosNovoUsuario() {
-    produtos = [];
+    console.log('🆕 Inicializando dados VAZIOS para novo usuário:', currentUser.id);
+    
+    produtos = []; // ✅ LISTA VAZIA para novo usuário
     lixeira = [];
     notasFiscais = [];
     relatorioDiario = {
@@ -387,12 +406,9 @@ function inicializarDadosNovoUsuario() {
     nextProductId = 1;
     nextNotaId = 1;
     
-    // Adiciona produtos de exemplo
-    carregarProdutosIniciais();
+    // ❌ REMOVIDO: carregarProdutosIniciais() - NÃO carrega produtos de exemplo
     
-    // Salva os dados iniciais
-    salvarDadosUsuarioAtual();
-    salvarDadosLocais();
+    console.log('✅ Dados vazios inicializados para usuário:', currentUser.id);
 }
 
 // ========== SISTEMA DE LOGIN GLOBAL COM JSONBIN ==========
@@ -428,6 +444,13 @@ async function login() {
             
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
             showMainContent();
+            
+            // ✅ FORÇA carregamento de dados específicos do usuário
+            await carregarDadosUsuarioAtual();
+            
+            // ✅ VERIFICA isolamento (para debug)
+            verificarIsolamentoDados();
+            
             alert(`🎉 Bem-vindo, ${usuario.nome}!`);
         } else {
             alert('❌ Email ou senha incorretos!');
@@ -1159,6 +1182,27 @@ function adicionarLinkSecreto() {
     }
 }
 
+// ========== VERIFICAR ISOLAMENTO DE DADOS ==========
+function verificarIsolamentoDados() {
+    console.log('🔍 VERIFICANDO ISOLAMENTO DE DADOS:');
+    console.log('👤 Usuário atual:', currentUser?.id, currentUser?.name);
+    console.log('📦 Produtos carregados:', produtos.length);
+    console.log('📊 Notas fiscais:', notasFiscais.length);
+    console.log('🗑️ Lixeira:', lixeira.length);
+    console.log('💾 Dados no localStorage:', Object.keys(localStorage).filter(key => key.includes(currentUser?.id)));
+    
+    // Verifica se há dados de outros usuários na memória
+    if (dadosUsuarios) {
+        console.log('👥 Total de usuários com dados:', Object.keys(dadosUsuarios).length);
+        Object.keys(dadosUsuarios).forEach(userId => {
+            console.log(`   👤 Usuário ${userId}:`, {
+                produtos: dadosUsuarios[userId].produtos?.length || 0,
+                notas: dadosUsuarios[userId].notasFiscais?.length || 0
+            });
+        });
+    }
+}
+
 // ========== FUNÇÕES EXISTENTES - MANTIDAS ORIGINAIS ==========
 
 // Função para testar a conexão com o Google Apps Script
@@ -1184,7 +1228,8 @@ function checkAuthStatus() {
     if (savedUser && rememberMe) {
         currentUser = JSON.parse(savedUser);
         showMainContent();
-        loadUserData();
+        // ❌ REMOVIDO: loadUserData() - agora carregado via carregarDadosUsuarioAtual
+        carregarDadosUsuarioAtual(); // ✅ Carrega dados específicos do usuário
     }
 }
 
@@ -1305,9 +1350,7 @@ function showMainContent() {
         document.getElementById('user-name').textContent = currentUser.name;
     }
     
-    // Carrega dados sincronizados do usuário
-    carregarDadosUsuarioAtual();
-    
+    // ❌ REMOVIDO: carregarDadosUsuarioAtual() - já é chamado no login
     // Inicia a sincronização periódica
     setupPeriodicSync();
     
@@ -1533,8 +1576,7 @@ function initializeUserData() {
     nextProductId = 1;
     nextNotaId = 1;
     
-    // Adiciona alguns produtos de exemplo
-    carregarProdutosIniciais();
+    // ❌ REMOVIDO: carregarProdutosIniciais() - não carrega produtos de exemplo
     
     // Salva localmente
     saveLocalData();
@@ -1681,16 +1723,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const now = new Date();
     document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR');
 
-    // Migra dados antigos antes de carregar
-    migrarDadosAntigos();
+    // ❌ REMOVIDO: migrarDadosAntigos() - não necessário no multi-usuário
 
-    // Carrega dados iniciais
-    carregarProdutos();
-    carregarLixeira();
-    carregarNotasFiscais();
-    carregarCarrinho();
-    carregarRelatorioDiario();
+    // ❌ REMOVIDO: carregarProdutos(), carregarLixeira(), etc. - agora carregado via carregarDadosUsuarioAtual
     
+    // Apenas se o usuário estiver logado, carrega os dados
+    if (currentUser) {
+        carregarDadosUsuarioAtual();
+    }
+    
+    // Atualiza a UI (se não estiver logado, mostra vazio)
     atualizarTabelaProdutos();
     atualizarTabelaNotas();
     atualizarTabelaLixeira();
@@ -1908,38 +1950,7 @@ function editarCategoriaProduto(produtoId) {
     }
 }
 
-// Função para migrar dados antigos (notas excluídas que ainda estão no relatório diário)
-function migrarDadosAntigos() {
-    // Verifica se há notas fiscais no localStorage
-    const notasSalvas = localStorage.getItem('notasFiscais');
-    if (!notasSalvas) return;
-    
-    const notas = JSON.parse(notasSalvas);
-    
-    // Verifica se há relatório diário no localStorage
-    const relatorioSalvo = localStorage.getItem('relatorioDiario');
-    if (!relatorioSalvo) return;
-    
-    const relatorio = JSON.parse(relatorioSalvo);
-    
-    // Obtém a data de hoje
-    const hoje = new Date().toLocaleDateString('pt-BR');
-    
-    // Se o relatório for de hoje, verifica consistência
-    if (relatorio.data === hoje) {
-        // Filtra as vendas do relatório diário, mantendo apenas as que existem nas notas fiscais
-        relatorio.vendas = relatorio.vendas.filter(venda => {
-            return notas.some(nota => nota.id === venda.id);
-        });
-        
-        // Recalcula totais
-        relatorio.totalNotas = relatorio.vendas.length;
-        relatorio.totalVendas = relatorio.vendas.reduce((total, venda) => total + venda.total, 0);
-        
-        // Salva o relatório corrigido
-        localStorage.setItem('relatorioDiario', JSON.stringify(relatorio));
-    }
-}
+// ❌ REMOVIDA: função migrarDadosAntigos - não necessário no multi-usuário
 
 // Função para atualizar o relatório diário na tela
 function atualizarRelatorioDiario() {
@@ -2036,20 +2047,15 @@ function carregarProdutos() {
         // Atualiza o próximo ID com base nos IDs existentes
         nextProductId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
     } else {
-        carregarProdutosIniciais();
-        salvarProdutos(); // salva os produtos iniciais
+        // ✅ NÃO carrega produtos iniciais - mantém array vazio
+        produtos = [];
+        nextProductId = 1;
+        console.log('🆕 Lista de produtos inicializada VAZIA para usuário:', currentUser?.id);
+        salvarProdutos(); // salva a lista vazia
     }
 }
 
-// Carrega produtos iniciais
-function carregarProdutosIniciais() {
-    produtos = [
-        { id: nextProductId++, nome: 'Arroz 5kg', preco: 22.90, quantidade: 12, categoria: 'Alimentos', ativo: true },
-        { id: nextProductId++, nome: 'Feijão 1kg', preco: 8.50, quantidade: 25, categoria: 'Alimentos', ativo: true },
-        { id: nextProductId++, nome: 'Açúcar 1kg', preco: 4.99, quantidade: 18, categoria: 'Alimentos', ativo: true },
-        { id: nextProductId++, nome: 'Detergente', preco: 2.79, quantidade: 40, categoria: 'Limpeza', ativo: true }
-    ];
-}
+// ❌ REMOVIDA: função carregarProdutosIniciais - não usada mais
 
 // Carrega lixeira do localStorage
 function carregarLixeira() {
