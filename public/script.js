@@ -8,7 +8,7 @@ const JSONBIN_API_KEY = '$2a$10$aFREHvW92HywEO4fJDQyXu/R1H/bh1NamGIm9MRbsMKIxIUl
 const SERVER_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
 
 // ========== CONFIGURAÇÃO JSONBIN PARA DADOS DOS USUÁRIOS ==========
-const JSONBIN_DADOS_ID = '68dd7da843b1c97be9570e05'; // NOVO BIN para dados
+const JSONBIN_DADOS_ID = '68dd7da843b1c97be9570e05';
 const JSONBIN_DADOS_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_DADOS_ID;
 
 // Variáveis para controle de usuário e sincronização
@@ -20,28 +20,85 @@ let syncInterval = null;
 let dadosUsuarios = {};
 
 // ========== CONFIGURAÇÃO: CRIAR CONTA APENAS PARA DESENVOLVEDOR ==========
-const MODO_CRIAR_CONTA_DESENVOLVEDOR = true; // TRUE = Apenas desenvolvedor pode criar contas
+const MODO_CRIAR_CONTA_DESENVOLVEDOR = true;
+
+// ========== VARIÁVEIS GLOBAIS DO SISTEMA ==========
+let cart = [];
+let nextProductId = 1;
+let produtos = [];
+let lixeira = [];
+let notasFiscais = [];
+let nextNotaId = 1;
+let relatorioDiario = {
+    data: new Date().toLocaleDateString('pt-BR'),
+    totalVendas: 0,
+    totalNotas: 0,
+    vendas: []
+};
+
+// ========== PROTEÇÃO CONTRA VAZAMENTO DE DADOS ==========
+function protecaoContraVazamento() {
+    const usuarioLogado = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    
+    if (!usuarioLogado) {
+        console.log('🛡️ Proteção ativada: Nenhum usuário logado, limpando variáveis globais');
+        limparVariaveisGlobais();
+    } else {
+        console.log('🛡️ Proteção: Usuário logado encontrado:', usuarioLogado.email);
+    }
+}
+
+// ========== LIMPAR VARIÁVEIS GLOBAIS ==========
+function limparVariaveisGlobais() {
+    console.log('🧹 Limpando variáveis globais...');
+    
+    cart = [];
+    produtos = [];
+    lixeira = [];
+    notasFiscais = [];
+    relatorioDiario = {
+        data: new Date().toLocaleDateString('pt-BR'),
+        totalVendas: 0,
+        totalNotas: 0,
+        vendas: []
+    };
+    nextProductId = 1;
+    nextNotaId = 1;
+    
+    console.log('✅ Variáveis globais resetadas');
+}
 
 // Verifica se há um usuário logado ao carregar a página
 document.addEventListener('DOMContentLoaded', function() {
+    protecaoContraVazamento();
     checkAuthStatus();
     setupEventListeners();
     checkOnlineStatus();
     
-    // Verifica periodicamente o status de conexão
     setInterval(checkOnlineStatus, 30000);
     
-    // ADICIONE ESTAS LINHAS:
-    adicionarCSSMobile(); // ← CSS para mobile
+    adicionarCSSMobile();
     adicionarBotaoDesenvolvedor();
-    adicionarBotaoSincronizacao(); // ← Botão de sync
+    adicionarBotaoSincronizacao();
     adicionarLinkSecreto();
     
-    // Configura visibilidade do formulário de registro baseado no modo
     configurarVisibilidadeRegistro();
 
-    // ❌ REMOVIDO: migrarDadosAntigos() - não necessário no multi-usuário
-    // ❌ REMOVIDO: carregarProdutos(), carregarLixeira(), etc. - agora carregado via carregarDadosUsuarioAtual
+    // Configura data atual
+    const now = new Date();
+    document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR');
+
+    // Atualiza a UI (se não estiver logado, mostra vazio)
+    atualizarTabelaProdutos();
+    atualizarTabelaNotas();
+    atualizarTabelaLixeira();
+    atualizarRelatorios();
+
+    // Adiciona evento para filtrar produtos enquanto digita
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', filtrarProdutos);
+    }
 });
 
 // ========== CONFIGURAR VISIBILIDADE DO REGISTRO ==========
@@ -51,7 +108,6 @@ function configurarVisibilidadeRegistro() {
     const loginContainer = document.getElementById('login-container');
     
     if (MODO_CRIAR_CONTA_DESENVOLVEDOR && loginContainer) {
-        // Em vez de esconder, mostra uma mensagem informativa
         if (registerLink) {
             registerLink.innerHTML = '🔒 Criar Conta (Apenas Desenvolvedor)';
             registerLink.style.color = '#ffc107';
@@ -64,7 +120,6 @@ function configurarVisibilidadeRegistro() {
 
 // ========== FUNÇÃO REGISTER MODIFICADA ==========
 async function register() {
-    // VERIFICA SE É MODO DESENVOLVEDOR
     if (MODO_CRIAR_CONTA_DESENVOLVEDOR && !verificarSeEDesenvolvedor()) {
         alert('❌ CRIAÇÃO DE CONTA RESTRITA!\n\nApenas o desenvolvedor do sistema pode criar novas contas.\n\n');
         return;
@@ -85,7 +140,6 @@ async function register() {
         return;
     }
 
-    // Mostra loading
     const btn = document.querySelector('#register-form button[type="submit"]');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-arrow-repeat spinner"></i> Cadastrando...';
@@ -94,32 +148,28 @@ async function register() {
     try {
         const usuarios = await buscarUsuarios();
         
-        // Verifica se email já existe
         if (usuarios.some(user => user.email.toLowerCase() === email.toLowerCase())) {
             alert('❌ Este email já está cadastrado!');
             return;
         }
         
-        // Adiciona novo usuário
         const novoUsuario = {
             id: Date.now().toString(),
             nome: name,
             email: email,
             senha: password,
             dataCadastro: new Date().toISOString(),
-            criadoPor: currentUser ? currentUser.email : 'desenvolvedor' // Registra quem criou
+            criadoPor: currentUser ? currentUser.email : 'desenvolvedor'
         };
         
         usuarios.push(novoUsuario);
         
-        // Salva no JSONBin
         const sucesso = await salvarUsuarios(usuarios);
         
         if (sucesso) {
             alert('✅ Conta criada com sucesso! Agora você pode fazer login em qualquer dispositivo.');
             showLoginForm();
             
-            // Limpa o formulário
             document.getElementById('register-name').value = '';
             document.getElementById('register-email').value = '';
             document.getElementById('register-password').value = '';
@@ -131,7 +181,6 @@ async function register() {
         console.error('Erro:', error);
         alert('❌ Erro ao criar conta. Tente novamente.');
     } finally {
-        // Restaura botão
         btn.innerHTML = originalText;
         btn.disabled = false;
     }
@@ -139,7 +188,6 @@ async function register() {
 
 // ========== FUNÇÃO SHOW REGISTER FORM MODIFICADA ==========
 function showRegisterForm() {
-    // VERIFICA SE É MODO DESENVOLVEDOR
     if (MODO_CRIAR_CONTA_DESENVOLVEDOR && !verificarSeEDesenvolvedor()) {
         alert('🔒 ACESSO RESTRITO!\n\nA criação de novas contas está disponível apenas para o desenvolvedor do sistema.\n\nSe você precisa de uma conta, entre em contato com o administrador.\n\n (81) 98702-3658');
         return;
@@ -151,19 +199,16 @@ function showRegisterForm() {
 
 // Configura os listeners de eventos
 function setupEventListeners() {
-    // Formulário de login
     document.getElementById('login-form').addEventListener('submit', function(e) {
         e.preventDefault();
         login();
     });
     
-    // Formulário de registro
     document.getElementById('register-form').addEventListener('submit', function(e) {
         e.preventDefault();
         register();
     });
     
-    // Configura navegação
     document.getElementById('nav-inicio').addEventListener('click', function(e) {
         e.preventDefault();
         mostrarPagina('inicio');
@@ -192,7 +237,6 @@ function setupEventListeners() {
 
 // ========== SISTEMA DE SINCRONIZAÇÃO DE DADOS POR USUÁRIO ==========
 
-// Busca todos os dados dos usuários do JSONBin
 async function buscarDadosUsuarios() {
     try {
         const response = await fetch(JSONBIN_DADOS_URL + '/latest', {
@@ -216,7 +260,6 @@ async function buscarDadosUsuarios() {
     }
 }
 
-// Salva todos os dados dos usuários no JSONBin
 async function salvarDadosUsuarios() {
     try {
         const response = await fetch(JSONBIN_DADOS_URL, {
@@ -235,7 +278,7 @@ async function salvarDadosUsuarios() {
     }
 }
 
-// ========== SALVAR DADOS DO USUÁRIO ATUAL - VERSÃO CORRIGIDA ==========
+// ========== SALVAR DADOS DO USUÁRIO ATUAL ==========
 async function salvarDadosUsuarioAtual() {
     if (!currentUser) {
         console.log('❌ Nenhum usuário logado para salvar dados');
@@ -255,16 +298,13 @@ async function salvarDadosUsuarioAtual() {
             lastSync: new Date().toISOString()
         };
 
-        // Atualiza na estrutura global
         dadosUsuarios[currentUser.id] = dadosUsuario;
         
-        // Salva no JSONBin
         console.log('☁️ Enviando para nuvem...');
         const sucesso = await salvarDadosUsuarios();
         
         if (sucesso) {
             console.log('✅ Dados do usuário sincronizados na nuvem!');
-            // Também salva localmente como backup
             salvarDadosLocais();
         } else {
             console.log('❌ Falha ao salvar na nuvem, salvando localmente...');
@@ -274,7 +314,6 @@ async function salvarDadosUsuarioAtual() {
         return sucesso;
     } catch (error) {
         console.error('❌ Erro ao salvar dados:', error);
-        // Pelo menos salva localmente
         salvarDadosLocais();
         return false;
     }
@@ -284,37 +323,26 @@ async function salvarDadosUsuarioAtual() {
 async function carregarDadosUsuarioAtual() {
     if (!currentUser) return false;
 
-    console.log('🔄 Carregando dados do usuário:', currentUser.id);
+    console.log('🔄 Carregando dados ESPECÍFICOS do usuário:', currentUser.id);
     
     try {
-        // SEMPRE busca dados atualizados do JSONBin primeiro
         await carregarDadosUsuariosRemotos();
         
         const dadosUsuario = dadosUsuarios[currentUser.id];
         
         if (dadosUsuario && dadosUsuario.produtos) {
-            // Usa dados remotos (mais recentes)
-            console.log('✅ Dados encontrados na nuvem, aplicando...');
+            console.log('✅ Dados ESPECÍFICOS encontrados para o usuário', currentUser.id);
             aplicarDadosUsuario(dadosUsuario);
-            console.log('✅ Dados carregados do servidor');
-            
-            // Salva localmente como backup
             salvarDadosLocais();
         } else {
-            // Se não tem dados remotos, inicializa dados vazios para novo usuário
-            console.log('ℹ️ Nenhum dado na nuvem para este usuário, inicializando dados vazios...');
+            console.log('🆕 Nenhum dado específico para este usuário, inicializando dados VAZIOS...');
             inicializarDadosNovoUsuario();
-            console.log('ℹ️ Dados vazios inicializados para novo usuário');
-            
-            // Salva os dados vazios na nuvem
-            console.log('🔼 Salvando dados vazios na nuvem...');
             await salvarDadosUsuarioAtual();
         }
         
         return true;
     } catch (error) {
         console.error('❌ Erro ao carregar dados:', error);
-        // Fallback para dados locais
         carregarDadosLocais();
         return false;
     }
@@ -322,8 +350,11 @@ async function carregarDadosUsuarioAtual() {
 
 // Aplica os dados do usuário no sistema
 function aplicarDadosUsuario(dados) {
+    console.log('🎯 Aplicando dados específicos do usuário:', currentUser.id);
+    
+    // Garante que cada usuário tem seus próprios dados
     if (dados.produtos) produtos = dados.produtos;
-    else produtos = []; // ✅ Se não tem produtos, inicia vazio
+    else produtos = [];
 
     if (dados.lixeira) lixeira = dados.lixeira;
     else lixeira = [];
@@ -345,7 +376,8 @@ function aplicarDadosUsuario(dados) {
     if (dados.nextNotaId) nextNotaId = dados.nextNotaId;
     else nextNotaId = 1;
     
-    // Atualiza a UI
+    console.log('📊 Dados aplicados - Produtos:', produtos.length, 'Notas:', notasFiscais.length);
+    
     atualizarTabelaProdutos();
     atualizarTabelaNotas();
     atualizarTabelaLixeira();
@@ -385,7 +417,6 @@ function carregarDadosLocais() {
         const data = JSON.parse(localData);
         aplicarDadosUsuario(data);
     } else {
-        // Se não há dados, inicializa para novo usuário
         inicializarDadosNovoUsuario();
     }
 }
@@ -394,7 +425,7 @@ function carregarDadosLocais() {
 function inicializarDadosNovoUsuario() {
     console.log('🆕 Inicializando dados VAZIOS para novo usuário:', currentUser.id);
     
-    produtos = []; // ✅ LISTA VAZIA para novo usuário
+    produtos = [];
     lixeira = [];
     notasFiscais = [];
     relatorioDiario = {
@@ -405,8 +436,6 @@ function inicializarDadosNovoUsuario() {
     };
     nextProductId = 1;
     nextNotaId = 1;
-    
-    // ❌ REMOVIDO: carregarProdutosIniciais() - NÃO carrega produtos de exemplo
     
     console.log('✅ Dados vazios inicializados para usuário:', currentUser.id);
 }
@@ -422,7 +451,6 @@ async function login() {
         return;
     }
 
-    // Mostra loading
     const btn = document.querySelector('#login-form button[type="submit"]');
     const originalText = btn.innerHTML;
     btn.innerHTML = '<i class="bi bi-arrow-repeat spinner"></i> Entrando...';
@@ -436,6 +464,12 @@ async function login() {
         );
 
         if (usuario) {
+            console.log('🔐 Login bem-sucedido para:', usuario.email);
+            
+            // ✅ PRIMEIRO: Limpa variáveis globais de qualquer sessão anterior
+            limparVariaveisGlobais();
+            
+            // ✅ DEPOIS: Define o novo usuário
             currentUser = {
                 id: usuario.id,
                 name: usuario.nome,
@@ -443,10 +477,11 @@ async function login() {
             };
             
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            showMainContent();
             
-            // ✅ FORÇA carregamento de dados específicos do usuário
+            // ✅ FINALMENTE: Carrega dados ESPECÍFICOS deste usuário
             await carregarDadosUsuarioAtual();
+            
+            showMainContent();
             
             // ✅ VERIFICA isolamento (para debug)
             verificarIsolamentoDados();
@@ -459,7 +494,6 @@ async function login() {
         console.error('Erro:', error);
         alert('❌ Erro de conexão. Verifique sua internet.');
     } finally {
-        // Restaura botão
         btn.innerHTML = originalText;
         btn.disabled = false;
     }
@@ -481,7 +515,11 @@ async function buscarUsuarios() {
         }
         
         const data = await response.json();
-        return data.record || [];
+        const usuarios = data.record || [];
+        
+        localStorage.setItem('usuariosCache', JSON.stringify(usuarios));
+        
+        return usuarios;
     } catch (error) {
         console.error('Erro ao buscar usuários:', error);
         return [];
@@ -506,11 +544,30 @@ async function salvarUsuarios(usuarios) {
     }
 }
 
+// ========== VERIFICAR ISOLAMENTO DE DADOS ==========
+function verificarIsolamentoDados() {
+    console.log('🔍 VERIFICANDO ISOLAMENTO DE DADOS:');
+    console.log('👤 Usuário atual:', currentUser?.id, currentUser?.name);
+    console.log('📦 Produtos carregados:', produtos.length);
+    console.log('📊 Notas fiscais:', notasFiscais.length);
+    console.log('🗑️ Lixeira:', lixeira.length);
+    console.log('💾 Dados no localStorage:', Object.keys(localStorage).filter(key => key.includes(currentUser?.id)));
+    
+    if (dadosUsuarios) {
+        console.log('👥 Total de usuários com dados:', Object.keys(dadosUsuarios).length);
+        Object.keys(dadosUsuarios).forEach(userId => {
+            console.log(`   👤 Usuário ${userId}:`, {
+                produtos: dadosUsuarios[userId].produtos?.length || 0,
+                notas: dadosUsuarios[userId].notasFiscais?.length || 0
+            });
+        });
+    }
+}
+
 // ========== FUNÇÃO PARA SAIR DO MODO DESENVOLVEDOR ==========
 function sairModoDesenvolvedor() {
     if (confirm('🚪 Sair do modo desenvolvedor?\n\nIsso irá remover seu acesso especial.')) {
         localStorage.removeItem('senhaDesenvolvedor');
-        // Se estiver logado como admin, faz logout também
         const usuarioLogado = JSON.parse(localStorage.getItem('currentUser') || '{}');
         if (usuarioLogado.email === 'admin') {
             logout();
@@ -524,27 +581,22 @@ function sairModoDesenvolvedor() {
 }
 
 // ========== BOTÃO DESENVOLVEDOR ==========
-// ========== BOTÃO DESENVOLVEDOR - VERSÃO MOBILE ==========
 function adicionarBotaoDesenvolvedor() {
     setTimeout(() => {
-        // VERIFICA SE É O DESENVOLVEDOR
         const isDesenvolvedor = verificarSeEDesenvolvedor();
         
         if (isDesenvolvedor) {
-            // Remove botões existentes
             const botaoExistente = document.getElementById('botao-desenvolvedor');
             const botaoSairExistente = document.getElementById('botao-sair-desenvolvedor');
             if (botaoExistente) botaoExistente.remove();
             if (botaoSairExistente) botaoSairExistente.remove();
             
-            // Cria botão flutuante APENAS para o desenvolvedor
             const botao = document.createElement('button');
             botao.innerHTML = '👁️ Cadastros';
             botao.className = 'btn btn-warning btn-sm btn-flutuante';
             botao.onclick = verCadastros;
             botao.id = 'botao-desenvolvedor';
             
-            // Estilos para mobile
             botao.style.position = 'fixed';
             botao.style.bottom = '130px';
             botao.style.right = '10px';
@@ -558,14 +610,12 @@ function adicionarBotaoDesenvolvedor() {
             
             document.body.appendChild(botao);
             
-            // SEMPRE adiciona botão para SAIR do modo desenvolvedor
             const botaoSair = document.createElement('button');
             botaoSair.innerHTML = '🚪 Sair Dev';
             botaoSair.className = 'btn btn-danger btn-sm btn-flutuante';
             botaoSair.onclick = sairModoDesenvolvedor;
             botaoSair.id = 'botao-sair-desenvolvedor';
             
-            // Estilos para mobile
             botaoSair.style.position = 'fixed';
             botaoSair.style.bottom = '180px';
             botaoSair.style.right = '10px';
@@ -586,8 +636,7 @@ function adicionarBotaoDesenvolvedor() {
 
 // ========== VERIFICAÇÃO DE DESENVOLVEDOR ==========
 function verificarSeEDesenvolvedor() {
-    // MÉTODO 1: Verifica por email específico do desenvolvedor
-    const emailDesenvolvedor = 'admin'; // EMAIL DO DESENVOLVEDOR
+    const emailDesenvolvedor = 'admin';
     const usuarioLogado = JSON.parse(localStorage.getItem('currentUser') || '{}');
     
     if (usuarioLogado.email && usuarioLogado.email === emailDesenvolvedor) {
@@ -595,8 +644,7 @@ function verificarSeEDesenvolvedor() {
         return true;
     }
     
-    // MÉTODO 2: Verifica por senha mestra (alternativa)
-    const senhaMestra = '26092005Gui?'; // SENHA DO DESENVOLVEDOR
+    const senhaMestra = '26092005Gui?';
     const senhaInserida = localStorage.getItem('senhaDesenvolvedor');
     
     if (senhaInserida === senhaMestra) {
@@ -611,7 +659,7 @@ function verificarSeEDesenvolvedor() {
 // ========== FUNÇÃO PARA ATIVAR MODO DESENVOLVEDOR ==========
 function ativarModoDesenvolvedor() {
     const senha = prompt('🔐 Digite a senha de desenvolvedor:');
-    const senhaMestra = '26092005Gui?'; // SENHA DO DESENVOLVEDOR
+    const senhaMestra = '26092005Gui?';
     
     if (senha === senhaMestra) {
         localStorage.setItem('senhaDesenvolvedor', senha);
@@ -625,9 +673,7 @@ function ativarModoDesenvolvedor() {
 }
 
 // ========== FUNÇÃO PARA O DESENVOLVEDOR VER OS CADASTROS ==========
-// ========== FUNÇÃO PARA O DESENVOLVEDOR VER OS CADASTROS ==========
 async function verCadastros() {
-    // Verifica novamente se é desenvolvedor
     if (!verificarSeEDesenvolvedor()) {
         alert('❌ ACESSO RESTRITO!\n\nEsta função é apenas para o desenvolvedor do sistema.\n\nSe você é o desenvolvedor, use o link "🔧 Acesso Desenvolvedor" na tela de login.');
         return;
@@ -641,10 +687,7 @@ async function verCadastros() {
             return;
         }
         
-        // Cria uma modal para mostrar os usuários (em vez de alert)
         criarModalUsuarios(usuarios);
-        
-        // Também mostra no console
         console.log('📋 Usuários cadastrados:', usuarios);
         
     } catch (error) {
@@ -654,15 +697,12 @@ async function verCadastros() {
 }
 
 // ========== MODAL PARA VISUALIZAR USUÁRIOS ==========
-// ========== MODAL PARA VISUALIZAR USUÁRIOS ==========
 function criarModalUsuarios(usuarios) {
-    // Remove modal existente se houver
     const modalExistente = document.getElementById('modalUsuarios');
     if (modalExistente) {
         modalExistente.remove();
     }
     
-    // Cria a modal
     const modalHTML = `
     <div class="modal fade" id="modalUsuarios" tabindex="-1" aria-labelledby="modalUsuariosLabel" aria-hidden="true">
         <div class="modal-dialog modal-xl">
@@ -711,7 +751,6 @@ function criarModalUsuarios(usuarios) {
                         </table>
                     </div>
                     
-                    <!-- Estatísticas -->
                     <div class="row mt-4">
                         <div class="col-md-6">
                             <div class="card">
@@ -759,10 +798,8 @@ function criarModalUsuarios(usuarios) {
     </div>
     `;
     
-    // Adiciona a modal ao body
     document.body.insertAdjacentHTML('beforeend', modalHTML);
     
-    // Adiciona estilos CSS
     const estilo = `
         <style>
             .senha-cell {
@@ -785,14 +822,12 @@ function criarModalUsuarios(usuarios) {
     `;
     document.head.insertAdjacentHTML('beforeend', estilo);
     
-    // Mostra a modal
     const modal = new bootstrap.Modal(document.getElementById('modalUsuarios'));
     modal.show();
 }
 
 // ========== EXCLUIR USUÁRIO INDIVIDUAL ==========
 async function excluirUsuario(usuarioId, usuarioNome, usuarioEmail) {
-    // Verificação de segurança EXTRA para desenvolvedor
     if (!verificarSeEDesenvolvedor()) {
         alert('❌ ACESSO NEGADO!\n\nApenas o desenvolvedor pode excluir usuários.');
         return;
@@ -800,20 +835,17 @@ async function excluirUsuario(usuarioId, usuarioNome, usuarioEmail) {
     
     const usuarioAtual = JSON.parse(localStorage.getItem('currentUser') || '{}');
     
-    // Verifica se está tentando excluir a si mesmo
     if (usuarioAtual.id === usuarioId) {
         alert('❌ Você não pode excluir sua própria conta enquanto está logado!\n\nFaça logout primeiro ou use outra conta de desenvolvedor.');
         return;
     }
     
-    // Confirmação de exclusão
     const confirmacao = confirm(`🚨 EXCLUIR USUÁRIO\n\nNome: ${usuarioNome}\nEmail: ${usuarioEmail}\nID: ${usuarioId}\n\n⚠️ Esta ação NÃO PODE ser desfeita!\n\nDeseja continuar?`);
     
     if (!confirmacao) {
         return;
     }
     
-    // Confirmação FINAL
     const confirmacaoFinal = confirm(`⚠️ CONFIRMAÇÃO FINAL ⚠️\n\nVocê está excluindo permanentemente:\n\n"${usuarioNome}" (${usuarioEmail})\n\nEsta ação REMOVERÁ TODOS os dados deste usuário!\n\nContinuar?`);
     
     if (!confirmacaoFinal) {
@@ -821,16 +853,12 @@ async function excluirUsuario(usuarioId, usuarioNome, usuarioEmail) {
     }
     
     try {
-        // Mostrar loading
         const botao = event.target;
         const originalHTML = botao.innerHTML;
         botao.innerHTML = '<i class="bi bi-arrow-repeat spinner"></i>';
         botao.disabled = true;
         
-        // Busca usuários atuais
         const usuarios = await buscarUsuarios();
-        
-        // Encontra e remove o usuário
         const usuarioIndex = usuarios.findIndex(u => u.id === usuarioId);
         
         if (usuarioIndex === -1) {
@@ -840,24 +868,16 @@ async function excluirUsuario(usuarioId, usuarioNome, usuarioEmail) {
             return;
         }
         
-        // Remove o usuário do array
         usuarios.splice(usuarioIndex, 1);
-        
-        // Salva no JSONBin
         const sucesso = await salvarUsuarios(usuarios);
         
         if (sucesso) {
             alert(`✅ Usuário "${usuarioNome}" excluído com sucesso!`);
-            
-            // Atualiza a modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
             modal.hide();
-            
-            // Reabre a modal com a lista atualizada
             setTimeout(() => {
                 verCadastros();
             }, 500);
-            
         } else {
             alert('❌ Erro ao excluir usuário. Tente novamente.');
             botao.innerHTML = originalHTML;
@@ -867,178 +887,15 @@ async function excluirUsuario(usuarioId, usuarioNome, usuarioEmail) {
     } catch (error) {
         console.error('Erro ao excluir usuário:', error);
         alert('❌ Erro ao excluir usuário. Verifique a conexão.');
-        
-        // Restaura botão
         const botao = event.target;
         botao.innerHTML = '<i class="bi bi-trash"></i>';
         botao.disabled = false;
     }
 }
 
-// ========== LIMPAR DADOS DE UM USUÁRIO ESPECÍFICO ==========
-async function limparDadosUsuario(usuarioId, usuarioNome) {
-    if (!verificarSeEDesenvolvedor()) {
-        alert('❌ Acesso restrito ao desenvolvedor!');
-        return;
-    }
-    
-    const confirmacao = confirm(`🧹 LIMPAR DADOS DO USUÁRIO\n\nUsuário: ${usuarioNome}\nID: ${usuarioId}\n\nIsso irá remover TODOS os dados (produtos, notas, etc.) deste usuário.\n\nContinuar?`);
-    
-    if (!confirmacao) return;
-    
-    try {
-        // Busca dados atuais
-        await carregarDadosUsuariosRemotos();
-        
-        // Remove os dados do usuário
-        if (dadosUsuarios[usuarioId]) {
-            delete dadosUsuarios[usuarioId];
-            
-            // Salva no JSONBin
-            const sucesso = await salvarDadosUsuarios();
-            
-            if (sucesso) {
-                alert(`✅ Dados do usuário "${usuarioNome}" removidos com sucesso!`);
-            } else {
-                alert('❌ Erro ao remover dados do usuário.');
-            }
-        } else {
-            alert('ℹ️ Este usuário não possui dados salvos.');
-        }
-        
-    } catch (error) {
-        console.error('Erro:', error);
-        alert('❌ Erro ao limpar dados do usuário.');
-    }
-}
-
-// ========== RECARREGAR DADOS ==========
-function limparDadosUsuarioAtual() {
-    if (!verificarSeEDesenvolvedor()) {
-        alert('❌ Acesso restrito ao desenvolvedor!');
-        return;
-    }
-    
-    if (confirm('🔄 Recarregar lista de usuários?\n\nIsso irá buscar os dados mais recentes do servidor.')) {
-        // Fecha a modal atual
-        const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
-        if (modal) modal.hide();
-        
-        // Reabre a modal com dados atualizados
-        setTimeout(() => {
-            verCadastros();
-        }, 500);
-    }
-}
-
-// ========== LIMPAR TODOS OS USUÁRIOS ==========
-async function limparTodosUsuarios() {
-    if (!verificarSeEDesenvolvedor()) {
-        alert('❌ Acesso restrito ao desenvolvedor!');
-        return;
-    }
-    
-    // Verificação EXTRA de segurança
-    const usuarioAtual = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    
-    // Primeira confirmação
-    if (!confirm('🚨🚨🚨 ATENÇÃO! 🚨🚨🚨\n\nVocê está prestes a APAGAR TODOS OS USUÁRIOS CADASTRADOS!\n\n⚠️  Esta ação NÃO PODE ser desfeita!\n\n⚠️  Você NÃO poderá excluir sua própria conta logada.\n\nContinuar?')) {
-        return;
-    }
-    
-    // Segunda confirmação
-    if (!confirm('⚠️ CONFIRMAÇÃO FINAL ⚠️\n\nDigite "CONFIRMAR" para apagar todos os usuários:')) {
-        return;
-    }
-    
-    const confirmacao = prompt('Digite "CONFIRMAR" para prosseguir:');
-    if (confirmacao !== 'CONFIRMAR') {
-        alert('❌ Ação cancelada.');
-        return;
-    }
-    
-    try {
-        const usuarios = await buscarUsuarios();
-        
-        // Filtra para não excluir o usuário atual
-        const usuariosParaManter = usuarios.filter(u => u.id === usuarioAtual.id);
-        
-        const sucesso = await salvarUsuarios(usuariosParaManter);
-        
-        if (sucesso) {
-            if (usuariosParaManter.length > 0) {
-                alert(`✅ Todos os usuários foram removidos, exceto sua conta (${usuarioAtual.name})!`);
-            } else {
-                alert('✅ Todos os usuários foram removidos!');
-            }
-            
-            // Fecha a modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
-            modal.hide();
-        } else {
-            alert('❌ Erro ao remover usuários.');
-        }
-    } catch (error) {
-        console.error('Erro:', error);
-        alert('❌ Erro ao remover usuários.');
-    }
-}// ========== LIMPAR TODOS OS USUÁRIOS ==========
-async function limparTodosUsuarios() {
-    if (!verificarSeEDesenvolvedor()) {
-        alert('❌ Acesso restrito ao desenvolvedor!');
-        return;
-    }
-    
-    // Verificação EXTRA de segurança
-    const usuarioAtual = JSON.parse(localStorage.getItem('currentUser') || '{}');
-    
-    // Primeira confirmação
-    if (!confirm('🚨🚨🚨 ATENÇÃO! 🚨🚨🚨\n\nVocê está prestes a APAGAR TODOS OS USUÁRIOS CADASTRADOS!\n\n⚠️  Esta ação NÃO PODE ser desfeita!\n\n⚠️  Você NÃO poderá excluir sua própria conta logada.\n\nContinuar?')) {
-        return;
-    }
-    
-    // Segunda confirmação
-    if (!confirm('⚠️ CONFIRMAÇÃO FINAL ⚠️\n\nDigite "CONFIRMAR" para apagar todos os usuários:')) {
-        return;
-    }
-    
-    const confirmacao = prompt('Digite "CONFIRMAR" para prosseguir:');
-    if (confirmacao !== 'CONFIRMAR') {
-        alert('❌ Ação cancelada.');
-        return;
-    }
-    
-    try {
-        const usuarios = await buscarUsuarios();
-        
-        // Filtra para não excluir o usuário atual
-        const usuariosParaManter = usuarios.filter(u => u.id === usuarioAtual.id);
-        
-        const sucesso = await salvarUsuarios(usuariosParaManter);
-        
-        if (sucesso) {
-            if (usuariosParaManter.length > 0) {
-                alert(`✅ Todos os usuários foram removidos, exceto sua conta (${usuarioAtual.name})!`);
-            } else {
-                alert('✅ Todos os usuários foram removidos!');
-            }
-            
-            // Fecha a modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
-            modal.hide();
-        } else {
-            alert('❌ Erro ao remover usuários.');
-        }
-    } catch (error) {
-        console.error('Erro:', error);
-        alert('❌ Erro ao remover usuários.');
-    }
-}
-
-// Copiar senha individual
+// ========== FUNÇÕES AUXILIARES PARA USUÁRIOS ==========
 function copiarSenha(senha) {
     navigator.clipboard.writeText(senha).then(() => {
-        // Feedback visual
         const elemento = event.target;
         const originalText = elemento.textContent;
         elemento.textContent = '✅ Copiado!';
@@ -1053,7 +910,6 @@ function copiarSenha(senha) {
     });
 }
 
-// Copiar lista completa de usuários
 function copiarListaUsuarios() {
     const usuarios = JSON.parse(localStorage.getItem('usuariosCache') || '[]');
     let texto = '📊 LISTA DE USUÁRIOS CADASTRADOS\n\n';
@@ -1073,7 +929,6 @@ function copiarListaUsuarios() {
     });
 }
 
-// Exportar para CSV
 function exportarUsuariosCSV() {
     const usuarios = JSON.parse(localStorage.getItem('usuariosCache') || '[]');
     
@@ -1094,14 +949,34 @@ function exportarUsuariosCSV() {
     alert('✅ Arquivo CSV gerado com sucesso!');
 }
 
-// Abrir JSONBin no navegador
 function abrirJSONBin() {
     window.open(`https://jsonbin.io/${JSONBIN_BIN_ID}`, '_blank');
 }
 
-// Limpar todos os usuários (FUNÇÃO PERIGOSA - APENAS PARA DESENVOLVEDOR)
+function limparDadosUsuarioAtual() {
+    if (!verificarSeEDesenvolvedor()) {
+        alert('❌ Acesso restrito ao desenvolvedor!');
+        return;
+    }
+    
+    if (confirm('🔄 Recarregar lista de usuários?\n\nIsso irá buscar os dados mais recentes do servidor.')) {
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
+        if (modal) modal.hide();
+        setTimeout(() => {
+            verCadastros();
+        }, 500);
+    }
+}
+
 async function limparTodosUsuarios() {
-    if (!confirm('🚨🚨🚨 ATENÇÃO! 🚨🚨🚨\n\nVocê está prestes a APAGAR TODOS OS USUÁRIOS CADASTRADOS!\n\nEsta ação NÃO PODE ser desfeita!\n\nTem certeza absoluta?')) {
+    if (!verificarSeEDesenvolvedor()) {
+        alert('❌ Acesso restrito ao desenvolvedor!');
+        return;
+    }
+    
+    const usuarioAtual = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    
+    if (!confirm('🚨🚨🚨 ATENÇÃO! 🚨🚨🚨\n\nVocê está prestes a APAGAR TODOS OS USUÁRIOS CADASTRADOS!\n\n⚠️  Esta ação NÃO PODE ser desfeita!\n\n⚠️  Você NÃO poderá excluir sua própria conta logada.\n\nContinuar?')) {
         return;
     }
     
@@ -1116,11 +991,16 @@ async function limparTodosUsuarios() {
     }
     
     try {
-        const sucesso = await salvarUsuarios([]);
+        const usuarios = await buscarUsuarios();
+        const usuariosParaManter = usuarios.filter(u => u.id === usuarioAtual.id);
+        const sucesso = await salvarUsuarios(usuariosParaManter);
         
         if (sucesso) {
-            alert('✅ Todos os usuários foram removidos!');
-            // Fecha a modal
+            if (usuariosParaManter.length > 0) {
+                alert(`✅ Todos os usuários foram removidos, exceto sua conta (${usuarioAtual.name})!`);
+            } else {
+                alert('✅ Todos os usuários foram removidos!');
+            }
             const modal = bootstrap.Modal.getInstance(document.getElementById('modalUsuarios'));
             modal.hide();
         } else {
@@ -1132,37 +1012,8 @@ async function limparTodosUsuarios() {
     }
 }
 
-// ========== ATUALIZAR A FUNÇÃO buscarUsuarios PARA CACHE ==========
-async function buscarUsuarios() {
-    try {
-        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
-            method: 'GET',
-            headers: {
-                'X-Master-Key': JSONBIN_API_KEY,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Erro ao buscar dados');
-        }
-        
-        const data = await response.json();
-        const usuarios = data.record || [];
-        
-        // Salva no cache para usar na modal
-        localStorage.setItem('usuariosCache', JSON.stringify(usuarios));
-        
-        return usuarios;
-    } catch (error) {
-        console.error('Erro ao buscar usuários:', error);
-        return [];
-    }
-}
-
 // ========== LINK SECRETO PARA ATIVAR MODO DESENVOLVEDOR ==========
 function adicionarLinkSecreto() {
-    // Adiciona um link secreto no login para ativar modo desenvolvedor
     const loginContainer = document.getElementById('login-container');
     if (loginContainer && !verificarSeEDesenvolvedor()) {
         const linkSecreto = document.createElement('a');
@@ -1182,45 +1033,7 @@ function adicionarLinkSecreto() {
     }
 }
 
-// ========== VERIFICAR ISOLAMENTO DE DADOS ==========
-function verificarIsolamentoDados() {
-    console.log('🔍 VERIFICANDO ISOLAMENTO DE DADOS:');
-    console.log('👤 Usuário atual:', currentUser?.id, currentUser?.name);
-    console.log('📦 Produtos carregados:', produtos.length);
-    console.log('📊 Notas fiscais:', notasFiscais.length);
-    console.log('🗑️ Lixeira:', lixeira.length);
-    console.log('💾 Dados no localStorage:', Object.keys(localStorage).filter(key => key.includes(currentUser?.id)));
-    
-    // Verifica se há dados de outros usuários na memória
-    if (dadosUsuarios) {
-        console.log('👥 Total de usuários com dados:', Object.keys(dadosUsuarios).length);
-        Object.keys(dadosUsuarios).forEach(userId => {
-            console.log(`   👤 Usuário ${userId}:`, {
-                produtos: dadosUsuarios[userId].produtos?.length || 0,
-                notas: dadosUsuarios[userId].notasFiscais?.length || 0
-            });
-        });
-    }
-}
-
-// ========== FUNÇÕES EXISTENTES - MANTIDAS ORIGINAIS ==========
-
-// Função para testar a conexão com o Google Apps Script
-// async function testarConexaoGoogleSheets() {
-//     console.log('🔍 Testando conexão com Google Apps Script...');
-    
-//     try {
-//         const response = await fetch(PLANILHA_URL + '?acao=teste&timestamp=' + Date.now());
-//         const texto = await response.text();
-//         console.log('✅ Resposta do teste:', texto);
-//         return true;
-//     } catch (error) {
-//         console.error('❌ Erro no teste:', error);
-//         return false;
-//     }
-// }
-
-// Verifica o status de autenticação ao carregar
+// ========== FUNÇÕES DE AUTENTICAÇÃO ==========
 function checkAuthStatus() {
     const savedUser = localStorage.getItem('currentUser');
     const rememberMe = localStorage.getItem('rememberMe') === 'true';
@@ -1228,23 +1041,19 @@ function checkAuthStatus() {
     if (savedUser && rememberMe) {
         currentUser = JSON.parse(savedUser);
         showMainContent();
-        // ❌ REMOVIDO: loadUserData() - agora carregado via carregarDadosUsuarioAtual
-        carregarDadosUsuarioAtual(); // ✅ Carrega dados específicos do usuário
+        carregarDadosUsuarioAtual();
     }
 }
 
-// Verifica status de conexão
 function checkOnlineStatus() {
     isOnline = navigator.onLine;
     updateOnlineStatusUI();
     
-    // Se estivermos online e tivermos dados pendentes para sincronizar, sincroniza
     if (isOnline && currentUser) {
         syncPendingData();
     }
 }
 
-// Atualiza a UI com o status de conexão
 function updateOnlineStatusUI() {
     const syncIcon = document.getElementById('sync-icon');
     const syncText = document.getElementById('sync-text');
@@ -1260,160 +1069,89 @@ function updateOnlineStatusUI() {
     }
 }
 
-// SOLUÇÃO FINAL - SEU GOOGLE FORMS (SEM CORS)
-// SOLUÇÃO FUNCIONAL - SEU GOOGLE FORMS
-function enviarParaGoogleSheets(nome, email, senha) {
-    console.log('🎯 Enviando para seu Google Forms...');
-    
-    const FORM_ID = '1FAIpQLSc74xTr5BdSgOJJ7zhsi1iVAY3O2mz5bMvIOw9aGKMB-AZS3w';
-    const FORM_URL = `https://docs.google.com/forms/d/e/${FORM_ID}/formResponse`;
-    
-    // Tenta diferentes combinações de IDs
-    const tentativas = [
-        // Combinação 1 - IDs mais comuns
-        { nome: 'entry.2005620554', email: 'entry.1045781291', senha: 'entry.1065046570' },
-        // Combinação 2 - Outra possibilidade
-        { nome: 'entry.1234567890', email: 'entry.0987654321', senha: 'entry.5555555555' },
-        // Combinação 3 - Padrão sequencial
-        { nome: 'entry.1', email: 'entry.2', senha: 'entry.3' }
-    ];
-    
-    // Tenta cada combinação
-    tentativas.forEach((fieldIds, index) => {
-        setTimeout(() => {
-            const formData = new URLSearchParams();
-            formData.append(fieldIds.nome, nome);
-            formData.append(fieldIds.email, email);
-            formData.append(fieldIds.senha, senha);
-            
-            console.log(`🔄 Tentativa ${index + 1} com IDs:`, fieldIds);
-            
-            fetch(FORM_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                body: formData
-            })
-            .then(() => {
-                console.log(`✅ Tentativa ${index + 1} - Dados enviados!`);
-            })
-            .catch(() => {
-                console.log(`⚠️ Tentativa ${index + 1} - Enviado em segundo plano`);
-            });
-        }, index * 1000); // Espera 1 segundo entre tentativas
-    });
-    
-    console.log('📤 Iniciando envio...');
-    alert('✅ Usuário cadastrado! Os dados estão sendo enviados.');
-    
-    // Abre o forms para verificar
-    setTimeout(() => {
-        window.open('https://docs.google.com/forms/d/1FAIpQLSc74xTr5BdSgOJJ7zhsi1iVAY3O2mz5bMvIOw9aGKMB-AZS3w/viewanalytics', '_blank');
-    }, 3000);
-}
-
-// Faz logout do usuário
+// ========== FUNÇÃO LOGOUT CORRIGIDA ==========
 function logout() {
-    // Para a sincronização periódica
+    console.log('🚪 Fazendo logout do usuário:', currentUser?.id);
+    
     if (syncInterval) {
         clearInterval(syncInterval);
     }
     
-    // Limpa dados sensíveis
+    // ✅ PRIMEIRO: Limpa variáveis globais
+    limparVariaveisGlobais();
+    
+    // ✅ DEPOIS: Remove usuário
+    const usuarioAntigo = currentUser;
     currentUser = null;
     localStorage.removeItem('currentUser');
     
-    // Mostra tela de login
+    console.log('✅ Logout concluído para:', usuarioAntigo?.id);
+    
     document.getElementById('main-content').classList.add('d-none');
     document.getElementById('login-container').classList.remove('d-none');
 }
 
-// Mostra a mensagem de status
 function showMessage(message, type) {
     const messageEl = document.getElementById('login-message');
     messageEl.textContent = message;
     messageEl.className = `alert alert-${type} mt-3`;
     messageEl.classList.remove('d-none');
     
-    // Esconde a mensagem após 5 segundos
     setTimeout(() => {
         messageEl.classList.add('d-none');
     }, 5000);
 }
 
-// Mostra o conteúdo principal após login
+// ========== SHOW MAIN CONTENT CORRIGIDA ==========
 function showMainContent() {
+    console.log('🎯 Mostrando conteúdo principal para:', currentUser?.id);
+    
     document.getElementById('login-container').classList.add('d-none');
     document.getElementById('main-content').classList.remove('d-none');
     
-    // Atualiza o nome do usuário na navbar
     if (currentUser) {
         document.getElementById('user-name').textContent = currentUser.name;
     }
     
-    // ❌ REMOVIDO: carregarDadosUsuarioAtual() - já é chamado no login
-    // Inicia a sincronização periódica
     setupPeriodicSync();
-    
-    // Mostra a página inicial por padrão
     mostrarPagina('inicio');
 }
 
-// Configura a sincronização periódica
-// Configura a sincronização periódica - VERSÃO MELHORADA
 function setupPeriodicSync() {
-    // Sincroniza a cada 30 segundos (mais frequente)
     syncInterval = setInterval(async () => {
         if (isOnline && currentUser) {
             console.log('🔄 Sincronização periódica...');
             await salvarDadosUsuarioAtual();
         }
-    }, 30000); // 30 segundos
+    }, 30000);
 }
 
-// ========== BOTÃO DE SINCRONIZAÇÃO MANUAL ==========
-// ========== BOTÃO DE SINCRONIZAÇÃO MANUAL - VERSÃO MOBILE ==========
+// ========== BOTÃO DE SINCRONIZAÇÃO ==========
 function adicionarBotaoSincronizacao() {
     setTimeout(() => {
         if (currentUser) {
-            // Remove botão existente se houver
             const botaoExistente = document.getElementById('botao-sincronizar');
             if (botaoExistente) {
                 botaoExistente.remove();
             }
             
+            // Botão comentado para evitar erro, mas mantendo a função
             const botaoSync = document.createElement('button');
             // botaoSync.innerHTML = '🔄 Sync';
             // botaoSync.className = 'btn btn-info btn-sm';
             // botaoSync.onclick = sincronizarManual;
             // botaoSync.id = 'botao-sincronizar';
-            
-            // ESTILOS OTIMIZADOS PARA MOBILE
-            // botaoSync.style.position = 'fixed';
-            // botaoSync.style.bottom = '80px'; // Ajustado para mobile
-            // botaoSync.style.right = '10px'; // Ajustado para mobile
-            // botaoSync.style.zIndex = '10000'; // Z-index mais alto
-            // botaoSync.style.fontSize = '14px'; // Maior para mobile
-            // botaoSync.style.padding = '8px 12px'; // Maior para toque
-            // botaoSync.style.borderRadius = '20px'; // Arredondado
-            // botaoSync.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)'; // Sombra para visibilidade
-            // botaoSync.style.border = '2px solid #fff'; // Borda branca para contraste
-            
-            // Garantir que está visível em todos os dispositivos
-            // botaoSync.style.background = '#17a2b8';
-            // botaoSync.style.color = 'white';
-            // botaoSync.style.fontWeight = 'bold';
+            // ... (estilos comentados)
             
             document.body.appendChild(botaoSync);
             console.log('✅ Botão de sincronização adicionado');
         }
-    }, 3000); // Aumentei o tempo para garantir que o DOM esteja pronto
+    }, 3000);
 }
 
-// Adicionar CSS para mobile
 function adicionarCSSMobile() {
     const style = document.createElement('style');
     style.innerHTML = `
-        /* Estilos específicos para mobile */
         @media (max-width: 768px) {
             #botao-sincronizar {
                 bottom: 70px !important;
@@ -1439,13 +1177,11 @@ function adicionarCSSMobile() {
             }
         }
         
-        /* Garantir que os botões flutuantes não atrapalhem o conteúdo */
         .btn-flutuante {
             z-index: 10000 !important;
             position: fixed !important;
         }
         
-        /* Melhorar toque em mobile */
         @media (hover: none) and (pointer: coarse) {
             #botao-sincronizar:active,
             #botao-desenvolvedor:active,
@@ -1458,7 +1194,6 @@ function adicionarCSSMobile() {
     document.head.appendChild(style);
 }
 
-// Função de sincronização manual
 async function sincronizarManual() {
     if (!currentUser) return;
     
@@ -1468,10 +1203,7 @@ async function sincronizarManual() {
     botao.disabled = true;
     
     try {
-        // Primeiro busca dados atualizados
         await carregarDadosUsuarioAtual();
-        
-        // Depois salva (para garantir que está sincronizado)
         await salvarDadosUsuarioAtual();
         
         botao.innerHTML = '✅ Sincronizado!';
@@ -1492,176 +1224,8 @@ async function sincronizarManual() {
     }
 }
 
-// Adicione esta chamada no DOMContentLoaded:
-document.addEventListener('DOMContentLoaded', function() {
-    // ... código existente ...
-    adicionarBotaoSincronizacao(); // ← ADICIONE ESTA LINHA
-});
-
-// ========== VERIFICAR CONFLITOS DE SINCRONIZAÇÃO ==========
-function verificarConflitosSincronizacao(dadosRemotos, dadosLocais) {
-    if (!dadosRemotos || !dadosLocais) return 'remotos'; // Preferência por dados remotos
-    
-    const remoteTime = new Date(dadosRemotos.lastSync || 0);
-    const localTime = new Date(dadosLocais.lastUpdate || 0);
-    
-    // Usa os dados mais recentes
-    return remoteTime > localTime ? 'remotos' : 'locais';
-}
-
-// Carrega os dados do usuário
-function loadUserData() {
-    if (!currentUser) return;
-    
-    // Tenta carregar do servidor (simulado)
-    const userKey = `user_${currentUser.id}_data`;
-    const serverData = localStorage.getItem(userKey);
-    
-    if (serverData) {
-        // Se temos dados do servidor, usamos eles
-        const data = JSON.parse(serverData);
-        applyUserData(data);
-    } else {
-        // Se não, tentamos carregar dados locais
-        loadLocalData();
-    }
-    
-    // Verifica se há dados pendentes para sincronizar
-    checkPendingSync();
-}
-
-// Aplica os dados do usuário no sistema
-function applyUserData(data) {
-    if (data.produtos) produtos = data.produtos;
-    if (data.lixeira) lixeira = data.lixeira;
-    if (data.notasFiscais) notasFiscais = data.notasFiscais;
-    if (data.relatorioDiario) relatorioDiario = data.relatorioDiario;
-    if (data.nextProductId) nextProductId = data.nextProductId;
-    if (data.nextNotaId) nextNotaId = data.nextNotaId;
-    
-    // Atualiza a UI
-    atualizarTabelaProdutos();
-    atualizarTabelaNotas();
-    atualizarTabelaLixeira();
-    atualizarRelatorios();
-    updateCartDisplay();
-}
-
-// Carrega dados locais (quando não há conexão com servidor)
-function loadLocalData() {
-    // Tenta carregar dados salvos localmente para este usuário
-    const localData = localStorage.getItem(`local_${currentUser.id}_data`);
-    
-    if (localData) {
-        const data = JSON.parse(localData);
-        applyUserData(data);
-    } else {
-        // Se não há dados locais, inicializa com dados padrão
-        initializeUserData();
-    }
-}
-
-// Inicializa dados para um novo usuário
-function initializeUserData() {
-    // Dados iniciais para novo usuário
-    produtos = [];
-    lixeira = [];
-    notasFiscais = [];
-    relatorioDiario = {
-        data: new Date().toLocaleDateString('pt-BR'),
-        totalVendas: 0,
-        totalNotas: 0,
-        vendas: []
-    };
-    nextProductId = 1;
-    nextNotaId = 1;
-    
-    // ❌ REMOVIDO: carregarProdutosIniciais() - não carrega produtos de exemplo
-    
-    // Salva localmente
-    saveLocalData();
-}
-
-// Salva dados localmente
-function saveLocalData() {
-    if (!currentUser) return;
-    
-    const data = {
-        produtos,
-        lixeira,
-        notasFiscais,
-        relatorioDiario,
-        nextProductId,
-        nextNotaId,
-        lastUpdate: new Date().toISOString()
-    };
-    
-    localStorage.setItem(`local_${currentUser.id}_data`, JSON.stringify(data));
-    
-    // Marca que temos dados pendentes para sincronizar
-    localStorage.setItem(`pending_sync_${currentUser.id}`, 'true');
-}
-
-// Verifica se há dados pendentes para sincronizar
-function checkPendingSync() {
-    const pendingSync = localStorage.getItem(`pending_sync_${currentUser.id}`) === 'true';
-    
-    if (pendingSync && isOnline) {
-        syncData();
-    }
-}
-
-// Sincroniza dados com o servidor (simulado)
-function syncData() {
-    if (!currentUser || !isOnline) return;
-    
-    // Mostra status de sincronizando
-    const syncIcon = document.getElementById('sync-icon');
-    const syncText = document.getElementById('sync-text');
-    if (syncIcon && syncText) {
-        syncIcon.className = 'bi bi-cloud-arrow-up syncing';
-        syncText.textContent = 'Sincronizando...';
-    }
-    
-    // Simula tempo de sincronização
-    setTimeout(() => {
-        // Prepara dados para enviar
-        const data = {
-            produtos,
-            lixeira,
-            notasFiscais,
-            relatorioDiario,
-            nextProductId,
-            nextNotaId,
-            lastSync: new Date().toISOString()
-        };
-        
-        // "Envia" para o servidor (simulado com localStorage)
-        const userKey = `user_${currentUser.id}_data`;
-        localStorage.setItem(userKey, JSON.stringify(data));
-        
-        // Remove a flag de sincronização pendente
-        localStorage.removeItem(`pending_sync_${currentUser.id}`);
-        
-        // Atualiza UI com status de sincronizado
-        updateOnlineStatusUI();
-        
-        console.log('Dados sincronizados com sucesso!');
-    }, 1500);
-}
-
-// Sincroniza dados pendentes
-function syncPendingData() {
-    const pendingSync = localStorage.getItem(`pending_sync_${currentUser.id}`) === 'true';
-    
-    if (pendingSync) {
-        syncData();
-    }
-}
-
 // ========== FUNÇÃO PARA MOSTRAR PÁGINAS ==========
 function mostrarPagina(pagina) {
-    // Esconde todas as páginas
     const paginas = [
         'pagina-inicio',
         'pagina-notas', 
@@ -1677,19 +1241,16 @@ function mostrarPagina(pagina) {
         }
     });
     
-    // Mostra a página solicitada
     const paginaElemento = document.getElementById(`pagina-${pagina}`);
     if (paginaElemento) {
         paginaElemento.classList.remove('d-none');
     }
     
-    // Atualiza navegação
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
     });
     document.getElementById(`nav-${pagina}`).classList.add('active');
     
-    // Atualiza os dados específicos da página se necessário
     if (pagina === 'notas') {
         atualizarTabelaNotas();
     } else if (pagina === 'relatorios') {
@@ -1701,54 +1262,22 @@ function mostrarPagina(pagina) {
     }
 }
 
-// ========== VARIÁVEIS GLOBAIS E FUNÇÕES EXISTENTES ==========
+// ========== FUNÇÕES DO SISTEMA DE PRODUTOS ==========
 
-// Variáveis globais (mantidas do código original)
-let cart = [];
-let nextProductId = 1;
-let produtos = [];
-let lixeira = [];
-let notasFiscais = [];
-let nextNotaId = 1;
-let relatorioDiario = {
-    data: new Date().toLocaleDateString('pt-BR'),
-    totalVendas: 0,
-    totalNotas: 0,
-    vendas: []
-};
+// --- helpers para quantidade e parsing seguros ---
+function parseNumberInput(str) {
+    if (str === undefined || str === null) return 0;
+    if (typeof str === 'number') return str;
+    return parseFloat(String(str).replace(',', '.')) || 0;
+}
 
-// Inicialização
-document.addEventListener('DOMContentLoaded', function() {
-    // Configura data atual
-    const now = new Date();
-    document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR');
-
-    // ❌ REMOVIDO: migrarDadosAntigos() - não necessário no multi-usuário
-
-    // ❌ REMOVIDO: carregarProdutos(), carregarLixeira(), etc. - agora carregado via carregarDadosUsuarioAtual
-    
-    // Apenas se o usuário estiver logado, carrega os dados
-    if (currentUser) {
-        carregarDadosUsuarioAtual();
-    }
-    
-    // Atualiza a UI (se não estiver logado, mostra vazio)
-    atualizarTabelaProdutos();
-    atualizarTabelaNotas();
-    atualizarTabelaLixeira();
-    atualizarRelatorios();
-
-    // Adiciona evento para filtrar produtos enquanto digita
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) {
-        searchInput.addEventListener('input', filtrarProdutos);
-    }
-});
-
-// ---------------- Persistência de dados ----------------
+function formatQuantity(q) {
+    const num = Number(q) || 0;
+    if (Number.isInteger(num)) return String(num);
+    return num.toFixed(2).replace('.', ',');
+}
 
 function addToCart(product, quantity) {
-    // Verifica se já tem esse produto no carrinho
     const existingItem = cart.find(item => item.id === product.id);
     const totalSolicitado = (existingItem ? existingItem.quantity : 0) + quantity;
 
@@ -1766,13 +1295,11 @@ function addToCart(product, quantity) {
     updateCartDisplay();
 }
 
-// Edita quantidade ou remove item do carrinho - VERSÃO CORRIGIDA
 function editarItemCarrinho(produtoId, acao) {
     const itemIndex = cart.findIndex(i => i.id === produtoId);
     if (itemIndex === -1) return;
 
     const item = cart[itemIndex];
-    // BUSCA O PRODUTO ORIGINAL PARA VERIFICAR ESTOQUE ATUAL
     const produtoOriginal = produtos.find(p => p.id === produtoId);
 
     if (!produtoOriginal) {
@@ -1781,7 +1308,6 @@ function editarItemCarrinho(produtoId, acao) {
     }
 
     if (acao === 'aumentar') {
-        // Verifica se há estoque suficiente considerando o que JÁ ESTÁ NO CARRINHO
         const estoqueDisponivel = produtoOriginal.quantidade;
         const quantidadeNoCarrinho = item.quantity;
         
@@ -1807,7 +1333,6 @@ function editarItemCarrinho(produtoId, acao) {
     updateCartDisplay();
 }
 
-// Função para cancelar compra (zera o carrinho sem mexer no estoque)
 function cancelarCompra() {
     if (cart.length === 0) {
         alert('Não há itens no carrinho para cancelar.');
@@ -1815,28 +1340,13 @@ function cancelarCompra() {
     }
     
     if (confirm('Tem certeza que deseja cancelar esta compra?')) {
-        cart = []; // esvazia o carrinho
-        updateCartDisplay(); // atualiza exibição do carrinho
+        cart = [];
+        updateCartDisplay();
         alert('Compra cancelada com sucesso.');
     }
 }
 
-// --- helpers para quantidade e parsing seguros (aceita vírgula ou ponto) ---
-function parseNumberInput(str) {
-    if (str === undefined || str === null) return 0;
-    if (typeof str === 'number') return str;
-    // aceita "0,5" ou "0.5"
-    return parseFloat(String(str).replace(',', '.')) || 0;
-}
-
-function formatQuantity(q) {
-    const num = Number(q) || 0;
-    // se inteiro, mostra como inteiro; se decimal, mostra com 2 casas e vírgula
-    if (Number.isInteger(num)) return String(num);
-    return num.toFixed(2).replace('.', ',');
-}
-
-// ========== FUNÇÃO PARA EDITAR NOME DO PRODUTO ==========
+// ========== FUNÇÕES PARA EDITAR PRODUTOS ==========
 function editarNomeProduto(produtoId) {
     const produto = produtos.find(p => p.id === produtoId);
     
@@ -1851,14 +1361,12 @@ function editarNomeProduto(produtoId) {
         const nomeAntigo = produto.nome;
         produto.nome = novoNome.trim();
         
-        // Atualiza também o nome nos itens do carrinho se existir
         cart.forEach(item => {
             if (item.id === produtoId) {
                 item.name = novoNome.trim();
             }
         });
         
-        // Atualiza também o nome nas notas fiscais
         notasFiscais.forEach(nota => {
             nota.itens.forEach(item => {
                 if (item.id === produtoId) {
@@ -1874,15 +1382,12 @@ function editarNomeProduto(produtoId) {
         updateCartDisplay();
         
         alert(`✅ Nome do produto alterado de "${nomeAntigo}" para "${novoNome}"`);
-        
-        // SINCRONIZAÇÃO
         salvarDadosUsuarioAtual();
     } else if (novoNome !== null) {
         alert('❌ O nome do produto não pode ficar vazio!');
     }
 }
 
-// ========== FUNÇÃO PARA EDITAR PREÇO DO PRODUTO ==========
 function editarPrecoProduto(produtoId) {
     const produto = produtos.find(p => p.id === produtoId);
     
@@ -1898,7 +1403,6 @@ function editarPrecoProduto(produtoId) {
         const precoAntigo = produto.preco;
         produto.preco = precoNumero;
         
-        // Atualiza também o preço nos itens do carrinho se existir
         cart.forEach(item => {
             if (item.id === produtoId) {
                 item.price = precoNumero;
@@ -1911,15 +1415,12 @@ function editarPrecoProduto(produtoId) {
         updateCartDisplay();
         
         alert(`✅ Preço do produto alterado de R$ ${precoAntigo.toFixed(2)} para R$ ${precoNumero.toFixed(2)}`);
-        
-        // SINCRONIZAÇÃO
         salvarDadosUsuarioAtual();
     } else if (novoPreco !== null) {
         alert('❌ Digite um preço válido!');
     }
 }
 
-// ========== FUNÇÃO PARA EDITAR CATEGORIA DO PRODUTO ==========
 function editarCategoriaProduto(produtoId) {
     const produto = produtos.find(p => p.id === produtoId);
     
@@ -1942,19 +1443,14 @@ function editarCategoriaProduto(produtoId) {
         atualizarTabelaProdutos();
         
         alert(`✅ Categoria do produto alterada de "${categoriaAntiga}" para "${novaCategoria}"`);
-        
-        // SINCRONIZAÇÃO
         salvarDadosUsuarioAtual();
     } else if (novaCategoria !== null) {
         alert('❌ A categoria não pode ficar vazia!');
     }
 }
 
-// ❌ REMOVIDA: função migrarDadosAntigos - não necessário no multi-usuário
-
-// Função para atualizar o relatório diário na tela
+// ========== FUNÇÕES DE RELATÓRIO DIÁRIO ==========
 function atualizarRelatorioDiario() {
-    // Verifica se precisa resetar para o dia atual
     verificarResetDiario();
     
     document.getElementById('data-hoje').textContent = relatorioDiario.data;
@@ -1968,7 +1464,6 @@ function atualizarRelatorioDiario() {
     tbody.innerHTML = '';
     
     if (relatorioDiario.vendas.length > 0) {
-        // Mostra as últimas vendas primeiro (mais recentes no topo)
         relatorioDiario.vendas.slice().reverse().forEach(venda => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -1984,26 +1479,19 @@ function atualizarRelatorioDiario() {
     }
 }
 
-// Função para salvar relatório diário
 function salvarRelatorioDiario() {
     localStorage.setItem('relatorioDiario', JSON.stringify(relatorioDiario));
-    saveLocalData();
-    // Sincroniza com nuvem
     salvarDadosUsuarioAtual();
 }
 
-// Função para carregar relatório diário
 function carregarRelatorioDiario() {
     const relatorioSalvo = localStorage.getItem('relatorioDiario');
     if (relatorioSalvo) {
         const relatorio = JSON.parse(relatorioSalvo);
-        
-        // Verifica se é do mesmo dia
         const hoje = new Date().toLocaleDateString('pt-BR');
         if (relatorio.data === hoje) {
             relatorioDiario = relatorio;
         } else {
-            // Se for um dia diferente, reinicia o relatório
             relatorioDiario = {
                 data: hoje,
                 totalVendas: 0,
@@ -2015,12 +1503,10 @@ function carregarRelatorioDiario() {
     }
 }
 
-// Função para verificar e resetar o relatório diário
 function verificarResetDiario() {
     const hoje = new Date().toLocaleDateString('pt-BR');
     
     if (relatorioDiario.data !== hoje) {
-        // Novo dia, resetar o relatório
         relatorioDiario = {
             data: hoje,
             totalVendas: 0,
@@ -2031,33 +1517,25 @@ function verificarResetDiario() {
     }
 }
 
-// Salva produtos ativos no localStorage
+// ========== PERSISTÊNCIA DE DADOS ==========
 function salvarProdutos() {
     localStorage.setItem('produtos', JSON.stringify(produtos));
-    saveLocalData();
-    // Sincroniza com nuvem
     salvarDadosUsuarioAtual();
 }
 
-// Carrega produtos do localStorage, ou inicializa se não houver
 function carregarProdutos() {
     const produtosSalvos = localStorage.getItem('produtos');
     if (produtosSalvos) {
         produtos = JSON.parse(produtosSalvos);
-        // Atualiza o próximo ID com base nos IDs existentes
         nextProductId = produtos.length > 0 ? Math.max(...produtos.map(p => p.id)) + 1 : 1;
     } else {
-        // ✅ NÃO carrega produtos iniciais - mantém array vazio
         produtos = [];
         nextProductId = 1;
         console.log('🆕 Lista de produtos inicializada VAZIA para usuário:', currentUser?.id);
-        salvarProdutos(); // salva a lista vazia
+        salvarProdutos();
     }
 }
 
-// ❌ REMOVIDA: função carregarProdutosIniciais - não usada mais
-
-// Carrega lixeira do localStorage
 function carregarLixeira() {
     const lixeiraSalva = localStorage.getItem('lixeira');
     if (lixeiraSalva) {
@@ -2065,42 +1543,30 @@ function carregarLixeira() {
     }
 }
 
-// Carrega notas fiscais do localStorage
 function carregarNotasFiscais() {
     const notasSalvas = localStorage.getItem('notasFiscais');
     if (notasSalvas) {
         notasFiscais = JSON.parse(notasSalvas);
-        // Garante que todas as notas estão numeradas sequencialmente
         renumerarNotasFiscais();
-        // Atualiza o próximo ID
         nextNotaId = notasFiscais.length > 0 ? Math.max(...notasFiscais.map(n => n.id)) + 1 : 1;
-        // Salva as notas já renumeradas
         salvarNotasFiscais();
     }
 }
 
-// Salva lixeira no localStorage
 function salvarLixeira() {
     localStorage.setItem('lixeira', JSON.stringify(lixeira));
-    saveLocalData();
-    // Sincroniza com nuvem
     salvarDadosUsuarioAtual();
 }
 
-// Salva notas fiscais no localStorage
 function salvarNotasFiscais() {
     localStorage.setItem('notasFiscais', JSON.stringify(notasFiscais));
-    saveLocalData();
-    // Sincroniza com nuvem
     salvarDadosUsuarioAtual();
 }
 
-// Salva carrinho no localStorage
 function salvarCarrinho() {
     localStorage.setItem('cart', JSON.stringify(cart));
 }
 
-// Carrega carrinho do localStorage
 function carregarCarrinho() {
     const cartSalvo = localStorage.getItem('cart');
     if (cartSalvo) {
@@ -2109,9 +1575,7 @@ function carregarCarrinho() {
     updateCartDisplay();
 }
 
-// ---------------- Atualização de visualizações ----------------
-
-// Atualiza tabela de produtos
+// ========== ATUALIZAÇÃO DE VISUALIZAÇÕES ==========
 function atualizarTabelaProdutos() {
     const tableBody = document.getElementById('products-table-body');
     tableBody.innerHTML = '';
@@ -2132,7 +1596,6 @@ function atualizarTabelaProdutos() {
         row.className = 'product-row';
         row.id = `product-${produto.id}`;
         
-        // Determina a classe de estoque
         let stockClass = 'good-stock';
         if (Number(produto.quantidade) <= 5) stockClass = 'low-stock';
         if (Number(produto.quantidade) > 15) stockClass = 'high-stock';
@@ -2197,7 +1660,6 @@ function atualizarTabelaProdutos() {
     filtrarProdutos();
 }
 
-// Atualiza tabela da lixeira
 function atualizarTabelaLixeira() {
     const tbody = document.getElementById('trash-table-body');
     const trashEmpty = document.getElementById('trash-empty');
@@ -2232,7 +1694,6 @@ function atualizarTabelaLixeira() {
     });
 }
 
-// Atualiza tabela de notas fiscais
 function atualizarTabelaNotas() {
     const tableBody = document.getElementById('notas-table-body');
     const notasEmpty = document.getElementById('notas-empty');
@@ -2246,13 +1707,11 @@ function atualizarTabelaNotas() {
     
     notasEmpty.classList.add('d-none');
     
-    // Ordena notas por data (mais recente primeiro)
     const notasOrdenadas = [...notasFiscais].sort((a, b) => new Date(b.data) - new Date(a.data));
     
     notasOrdenadas.forEach(nota => {
         const row = document.createElement('tr');
         
-        // Formatar o total
         const totalFormatado = nota.total && typeof nota.total === 'number' 
             ? nota.total.toFixed(2).replace('.', ',') 
             : '0,00';
@@ -2278,49 +1737,30 @@ function atualizarTabelaNotas() {
     });
 }
 
-// Função para excluir nota fiscal COM RENUMERAÇÃO
 function excluirNotaFiscal(id) {
     if (confirm("Tem certeza que deseja excluir esta nota fiscal? Esta ação não pode ser desfeita!")) {
-        // Encontra a nota a ser excluída
         const notaIndex = notasFiscais.findIndex(n => n.id === id);
         
         if (notaIndex !== -1) {
             const nota = notasFiscais[notaIndex];
-            
-            // Remove a nota do array de notas fiscais
             notasFiscais.splice(notaIndex, 1);
             
-            // ATUALIZAÇÃO DO RELATÓRIO DIÁRIO (NOVO)
-            // Verifica se a nota é do dia atual
             const dataNota = new Date(nota.data).toLocaleDateString('pt-BR');
             const hoje = new Date().toLocaleDateString('pt-BR');
             
             if (dataNota === hoje) {
-                // Remove a nota do relatório diário
                 relatorioDiario.totalVendas -= nota.total;
                 relatorioDiario.totalNotas -= 1;
-                
-                // Remove a venda do array de vendas do dia
                 relatorioDiario.vendas = relatorioDiario.vendas.filter(v => v.id !== id);
-                
-                // Salva as alterações no relatório diário
                 salvarRelatorioDiario();
             }
             
-            // RENUMERA todas as notas fiscais para manter a sequência
             renumerarNotasFiscais();
-            
-            // Atualiza o próximo ID para continuar a sequência
             nextNotaId = notasFiscais.length > 0 ? Math.max(...notasFiscais.map(n => n.id)) + 1 : 1;
-            
-            // Salva as alterações
             salvarNotasFiscais();
-            
-            // Atualiza as visualizações
             atualizarTabelaNotas();
             atualizarRelatorios();
             
-            // Se estiver na página de relatório diário, atualiza também
             if (document.getElementById('pagina-relatorio-diario').classList.contains('d-none') === false) {
                 atualizarRelatorioDiario();
             }
@@ -2332,40 +1772,28 @@ function excluirNotaFiscal(id) {
     }
 }
 
-// Função para renumerar todas as notas fiscais em ordem sequencial
 function renumerarNotasFiscais() {
-    // Ordena as notas por data de criação (mais antiga primeiro)
     notasFiscais.sort((a, b) => new Date(a.data) - new Date(b.data));
-    
-    // Renumera sequencialmente a partir de 1
     notasFiscais.forEach((nota, index) => {
         nota.id = index + 1;
     });
 }
 
-// Atualiza relatórios
 function atualizarRelatorios() {
-    // Total geral (acumulado)
     const totalVendas = notasFiscais.reduce((acc, n) => acc + (n.total || 0), 0);
     document.getElementById("total-vendas").textContent = `R$ ${totalVendas.toFixed(2)}`;
-    
     document.getElementById("total-produtos").textContent = produtos.filter(p => p.ativo).length;
-    
     document.getElementById("total-notas").textContent = notasFiscais.length;
     
-    // Atualizar também as tabelas de relatórios
     atualizarVendasPorCategoria();
     atualizarVendasPorPeriodo();
 }
 
-// Atualiza vendas por categoria
 function atualizarVendasPorCategoria() {
     const tableBody = document.getElementById('vendas-categoria-body');
     tableBody.innerHTML = '';
     
     const vendasPorCategoria = {};
-    
-    // Inicializa categorias
     const categorias = [...new Set(produtos.map(p => p.categoria || 'Outros'))];
     categorias.forEach(categoria => {
         vendasPorCategoria[categoria] = {
@@ -2374,7 +1802,6 @@ function atualizarVendasPorCategoria() {
         };
     });
     
-    // Calcula vendas por categoria
     notasFiscais.forEach(nota => {
         nota.itens.forEach(item => {
             const produto = produtos.find(p => p.id === item.id);
@@ -2392,10 +1819,8 @@ function atualizarVendasPorCategoria() {
         });
     });
     
-    // Calcula total geral
     const totalGeral = Object.values(vendasPorCategoria).reduce((total, cat) => total + cat.valor, 0);
     
-    // Preenche a tabela
     Object.entries(vendasPorCategoria).forEach(([categoria, dados]) => {
         const percentual = totalGeral > 0 ? (dados.valor / totalGeral * 100).toFixed(2) : '0.00';
         
@@ -2411,52 +1836,6 @@ function atualizarVendasPorCategoria() {
     });
 }
 
-// ========== VERIFICAR SE BOTÃO ESTÁ VISÍVEL ==========
-function verificarBotaoSync() {
-    setTimeout(() => {
-        const botaoSync = document.getElementById('botao-sincronizar');
-        if (botaoSync) {
-            console.log('✅ Botão sync encontrado no DOM');
-            console.log('📍 Posição:', botaoSync.getBoundingClientRect());
-            console.log('🎨 Estilos:', window.getComputedStyle(botaoSync));
-        } else {
-            console.log('❌ Botão sync NÃO encontrado no DOM');
-            // Tenta adicionar novamente
-            adicionarBotaoSincronizacao();
-        }
-    }, 5000);
-}
-
-// Chame esta função no DOMContentLoaded também:
-document.addEventListener('DOMContentLoaded', function() {
-    // ... código existente ...
-    setTimeout(verificarBotaoSync, 6000); // Verifica após 6 segundos
-});
-
-// ========== BOTÃO DE SINCRONIZAÇÃO NA NAVBAR ==========
-function adicionarBotaoSyncNavbar() {
-    // Procura a navbar
-    const navbar = document.querySelector('.navbar-nav');
-    if (navbar && currentUser) {
-        const itemSync = document.createElement('li');
-        itemSync.className = 'nav-item';
-        itemSync.innerHTML = `
-            <a class="nav-link" href="#" onclick="sincronizarManual(); return false;">
-                <i class="bi bi-arrow-repeat"></i> Sincronizar
-            </a>
-        `;
-        navbar.appendChild(itemSync);
-        console.log('✅ Botão sync adicionado na navbar');
-    }
-}
-
-// Adicione esta chamada também:
-document.addEventListener('DOMContentLoaded', function() {
-    // ... código existente ...
-    adicionarBotaoSyncNavbar(); // ← Botão na navbar como backup
-});
-
-// Atualiza vendas por período
 function atualizarVendasPorPeriodo() {
     const dataInicio = document.getElementById('data-inicio').value;
     const dataFim = document.getElementById('data-fim').value;
@@ -2466,7 +1845,6 @@ function atualizarVendasPorPeriodo() {
     
     let notasFiltradas = [...notasFiscais];
     
-    // Aplica filtro de data se fornecido
     if (dataInicio) {
         const inicio = new Date(dataInicio);
         notasFiltradas = notasFiltradas.filter(nota => new Date(nota.data) >= inicio);
@@ -2474,11 +1852,10 @@ function atualizarVendasPorPeriodo() {
     
     if (dataFim) {
         const fim = new Date(dataFim);
-        fim.setHours(23, 59, 59, 999); // Fim do dia
+        fim.setHours(23, 59, 59, 999);
         notasFiltradas = notasFiltradas.filter(nota => new Date(nota.data) <= fim);
     }
     
-    // Agrupa vendas por data
     const vendasPorData = {};
     
     notasFiltradas.forEach(nota => {
@@ -2493,7 +1870,6 @@ function atualizarVendasPorPeriodo() {
         vendasPorData[data].valor += nota.total;
     });
     
-    // Preenche a tabela
     Object.entries(vendasPorData).forEach(([data, dados]) => {
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -2505,7 +1881,6 @@ function atualizarVendasPorPeriodo() {
         tableBody.appendChild(row);
     });
     
-    // Se não houver dados, exibe mensagem
     if (Object.keys(vendasPorData).length === 0) {
         tableBody.innerHTML = `
             <tr>
@@ -2515,9 +1890,7 @@ function atualizarVendasPorPeriodo() {
     }
 }
 
-// ---------------- Funções de filtro e navegação ----------------
-
-// Filtra produtos na barra de pesquisa
+// ========== FUNÇÕES DE FILTRO E NAVEGAÇÃO ==========
 function filtrarProdutos() {
     const query = (document.getElementById('search-input')?.value || '').toLowerCase();
     const linhas = document.querySelectorAll('.product-row');
@@ -2528,19 +1901,15 @@ function filtrarProdutos() {
     });
 }
 
-// Filtra vendas por período
 function filtrarVendas() {
     atualizarVendasPorPeriodo();
 }
 
-// Volta para a página inicial
 function voltarParaInicio() {
     mostrarPagina('inicio');
 }
 
-// ---------------- Funções de gerenciamento de produtos ----------------
-
-// Função para aumentar o estoque (aceita fração)
+// ========== FUNÇÕES DE GERENCIAMENTO DE PRODUTOS ==========
 function aumentarEstoque(produtoId) {
     const input = document.getElementById('qtd-aumentar-' + produtoId);
     const qtd = parseNumberInput(input.value) || 0.01;
@@ -2552,23 +1921,9 @@ function aumentarEstoque(produtoId) {
     salvarProdutos();
     atualizarTabelaProdutos();
     alert('Estoque aumentado em ' + formatQuantity(qtd) + ' unidades!');
-    
-    // SINCRONIZAÇÃO ADICIONADA
     salvarDadosUsuarioAtual();
-
-    // ADICIONE ESTAS LINHAS:
-    salvarProdutos();
-    atualizarTabelaProdutos();
-    alert('Estoque aumentado em ' + formatQuantity(qtd) + ' unidades!');
-    
-    // SINCRONIZAÇÃO FORÇADA
-    salvarDadosUsuarioAtual();
-
 }
 
-
-
-// Função para diminuir o estoque (aceita fração)
 function diminuirEstoque(produtoId) {
     const input = document.getElementById('qtd-diminuir-' + produtoId);
     const qtd = parseNumberInput(input.value) || 0.01;
@@ -2586,19 +1941,9 @@ function diminuirEstoque(produtoId) {
     salvarProdutos();
     atualizarTabelaProdutos();
     alert('Estoque diminuído em ' + formatQuantity(qtd) + ' unidades!');
-    
-    // SINCRONIZAÇÃO ADICIONADA
-    salvarDadosUsuarioAtual();
-
-    salvarProdutos();
-    atualizarTabelaProdutos();
-    alert('Estoque diminuído em ' + formatQuantity(qtd) + ' unidades!');
-    
-    // SINCRONIZAÇÃO FORÇADA
     salvarDadosUsuarioAtual();
 }
 
-// Função para adicionar produto ao carrinho (aceita frações) - VERSÃO CORRIGIDA
 function addToCart(produtoId) {
     const input = document.querySelector('.quantity-sale[data-produto-id="' + produtoId + '"]');
     const qtd = parseNumberInput(input.value);
@@ -2611,7 +1956,6 @@ function addToCart(produtoId) {
         return;
     }
     
-    // Verifica estoque considerando o que já está no carrinho
     const itemExistente = cart.find(item => item.id === produtoId);
     const quantidadeJaNoCarrinho = itemExistente ? itemExistente.quantity : 0;
     const totalSolicitado = quantidadeJaNoCarrinho + qtd;
@@ -2621,36 +1965,29 @@ function addToCart(produtoId) {
         return;
     }
     
-    // Adiciona ao carrinho
     if (itemExistente) {
-        // Atualiza a quantidade se já estiver no carrinho
         itemExistente.quantity = totalSolicitado;
     } else {
-        // Adiciona novo item ao carrinho com TODOS os dados necessários
         cart.push({
             id: produto.id,
             name: produto.nome,
             price: produto.preco,
             quantity: qtd,
-            estoque: produto.quantidade // ADICIONA ESTOQUE PARA REFERÊNCIA
+            estoque: produto.quantidade
         });
     }
     
-    // Atualiza a exibição do carrinho
     updateCartDisplay();
-    
     alert('Adicionado ao carrinho: ' + formatQuantity(qtd) + 'x ' + produto.nome);
     input.value = 0;
 }
 
-// Função para atualizar a exibição do carrinho
 function updateCartDisplay() {
     const cartItemsList = document.getElementById('cart-items-list');
     const cartTotalValue = document.getElementById('cart-total-value');
     const cartEmpty = document.getElementById('cart-empty');
     const cartItems = document.getElementById('cart-items');
 
-    // Salvar carrinho no localStorage
     salvarCarrinho();
 
     if (cart.length === 0) {
@@ -2662,18 +1999,15 @@ function updateCartDisplay() {
     cartEmpty.classList.add('d-none');
     cartItems.classList.remove('d-none');
     
-    // Limpa a lista
     cartItemsList.innerHTML = '';
     
-    // Calcula o total
     let total = 0;
     
-    // Adiciona os itens
     cart.forEach(item => {
-    const itemTotal = item.price * item.quantity;
-    total += itemTotal;
-    
-    const cartItem = document.createElement('div');
+        const itemTotal = item.price * item.quantity;
+        total += itemTotal;
+        
+        const cartItem = document.createElement('div');
         cartItem.className = 'cart-item d-flex justify-content-between align-items-center mb-2';
         cartItem.innerHTML = `
             <div>
@@ -2685,22 +2019,18 @@ function updateCartDisplay() {
                 <button class="btn btn-sm btn-outline-danger" onclick="editarItemCarrinho(${item.id}, 'remover')">X</button>
             </div>
         `;
-    cartItemsList.appendChild(cartItem);
-});
-
+        cartItemsList.appendChild(cartItem);
+    });
     
-    // Atualiza o total
     cartTotalValue.textContent = total.toFixed(2).replace('.', ',');
 }
 
-// Função para finalizar a venda - COM RELATÓRIO DIÁRIO
 function finalizarVenda() {
     if (cart.length === 0) {
         alert("Carrinho vazio!");
         return;
     }
 
-    // Verifica se precisa resetar o relatório diário
     verificarResetDiario();
 
     const cliente = prompt("Digite o nome do cliente (opcional):");
@@ -2725,7 +2055,6 @@ function finalizarVenda() {
     notasFiscais.push(novaNota);
     salvarNotasFiscais();
 
-    // ATUALIZA RELATÓRIO DIÁRIO
     relatorioDiario.totalVendas += total;
     relatorioDiario.totalNotas += 1;
     relatorioDiario.vendas.push({
@@ -2736,7 +2065,6 @@ function finalizarVenda() {
     });
     salvarRelatorioDiario();
 
-    // Atualizar estoque dos produtos vendidos
     cart.forEach(item => {
         const produto = produtos.find(p => p.id === item.id);
         if (produto) {
@@ -2747,8 +2075,6 @@ function finalizarVenda() {
     });
     
     salvarProdutos();
-
-    // Limpar carrinho
     cart = [];
     salvarCarrinho();
     
@@ -2758,22 +2084,9 @@ function finalizarVenda() {
     updateCartDisplay();
 
     alert("Venda finalizada! Nº: " + proximoId + " | Hoje: R$ " + relatorioDiario.totalVendas.toFixed(2));
-    
-    // SINCRONIZAÇÃO ADICIONADA
-    salvarDadosUsuarioAtual();
-
-     atualizarTabelaProdutos();
-    atualizarTabelaNotas();
-    atualizarRelatorios();
-    updateCartDisplay();
-
-    alert("Venda finalizada! Nº: " + proximoId + " | Hoje: R$ " + relatorioDiario.totalVendas.toFixed(2));
-    
-    // SINCRONIZAÇÃO FORÇADA
     salvarDadosUsuarioAtual();
 }
 
-// Função para adicionar produto (quantidade aceita decimais)
 function adicionarProduto() {
     const nome = (document.getElementById('nome').value || '').trim();
     const preco = parseNumberInput(document.getElementById('preco').value);
@@ -2798,31 +2111,17 @@ function adicionarProduto() {
     atualizarTabelaProdutos();
     document.getElementById('novoProdutoForm').reset();
     alert('Produto adicionado com sucesso!');
-    
-    // SINCRONIZAÇÃO ADICIONADA
-    salvarDadosUsuarioAtual();
-
-    salvarProdutos();
-    atualizarTabelaProdutos();
-    document.getElementById('novoProdutoForm').reset();
-    alert('Produto adicionado com sucesso!');
-    
-    // SINCRONIZAÇÃO FORÇADA
     salvarDadosUsuarioAtual();
 }
 
-// Função para mover produto para a lixeira
 function moverParaLixeira(id) {
     if (confirm("Deseja realmente enviar este produto para a lixeira?")) {
         const produtoIndex = produtos.findIndex(p => p.id === id);
         
         if (produtoIndex !== -1) {
             const produto = produtos[produtoIndex];
-            
-            // Marca como inativo
             produto.ativo = false;
             
-            // Adiciona à lixeira (faz uma cópia)
             lixeira.push({
                 id: produto.id,
                 nome: produto.nome,
@@ -2834,70 +2133,48 @@ function moverParaLixeira(id) {
             
             salvarProdutos();
             salvarLixeira();
-            
             atualizarTabelaProdutos();
             atualizarTabelaLixeira();
             alert("Produto movido para a lixeira!");
-            
-            // SINCRONIZAÇÃO ADICIONADA
             salvarDadosUsuarioAtual();
         }
     }
 }
 
-// Restaurar produto da lixeira
 function restaurarProduto(id) {
-    // Encontra o produto na lixeira
     const produtoIndex = lixeira.findIndex(p => p.id === id);
     
     if (produtoIndex !== -1) {
         const produto = lixeira[produtoIndex];
-        
-        // Marca o produto como ativo novamente
         produto.ativo = true;
         
-        // Adiciona de volta à lista de produtos (se não existir)
         const produtoExistente = produtos.find(p => p.id === id);
         if (!produtoExistente) {
             produtos.push(produto);
         } else {
-            // Se já existe, apenas marca como ativo
             produtoExistente.ativo = true;
         }
         
-        // Remove da lixeira
         lixeira.splice(produtoIndex, 1);
-        
-        // Salva as alterações
         salvarProdutos();
         salvarLixeira();
-        
-        // Atualiza as visualizações
         atualizarTabelaProdutos();
         atualizarTabelaLixeira();
-        
         alert("Produto restaurado com sucesso!");
-        
-        // SINCRONIZAÇÃO ADICIONADA
         salvarDadosUsuarioAtual();
     }
 }
 
-// Excluir permanentemente
 function excluirPermanentemente(id) {
     if (confirm("Deseja excluir permanentemente este produto?")) {
         lixeira = lixeira.filter(p => p.id !== id);
-        
         salvarLixeira();
         atualizarTabelaLixeira();
         alert("Produto excluído permanentemente!");
-        
-        // SINCRONIZAÇÃO ADICIONADA
         salvarDadosUsuarioAtual();
     }
 }
 
-// Visualizar nota fiscal
 function visualizarNota(id) {
     console.log("Tentando visualizar nota:", id);
     
@@ -2909,19 +2186,16 @@ function visualizarNota(id) {
         return;
     }
 
-    // Formatar valores com verificação de segurança
     const totalFormatado = nota.total && typeof nota.total === 'number' 
         ? nota.total.toFixed(2) 
         : '0.00';
 
-    // Preencher os dados da modal
     document.getElementById("nota-numero").textContent = nota.id;
     document.getElementById("nota-id").textContent = nota.id;
     document.getElementById("nota-data").textContent = new Date(nota.data).toLocaleDateString('pt-BR');
     document.getElementById("nota-cliente").textContent = nota.cliente || "Não informado";
     document.getElementById("nota-total").textContent = totalFormatado;
 
-    // Preencher os itens da nota
     const tbody = document.getElementById("nota-itens");
     tbody.innerHTML = "";
     
@@ -2946,7 +2220,6 @@ function visualizarNota(id) {
         `;
     }
 
-    // Mostrar a modal
     try {
         const modal = new bootstrap.Modal(document.getElementById("notaFiscalModal"));
         modal.show();
@@ -2957,7 +2230,27 @@ function visualizarNota(id) {
     }
 }
 
-// Imprime nota fiscal
 function imprimirNota() {
     window.print();
 }
+
+// ========== BOTÃO SYNC NA NAVBAR ==========
+function adicionarBotaoSyncNavbar() {
+    const navbar = document.querySelector('.navbar-nav');
+    if (navbar && currentUser) {
+        const itemSync = document.createElement('li');
+        itemSync.className = 'nav-item';
+        itemSync.innerHTML = `
+            <a class="nav-link" href="#" onclick="sincronizarManual(); return false;">
+                <i class="bi bi-arrow-repeat"></i> Sincronizar
+            </a>
+        `;
+        navbar.appendChild(itemSync);
+        console.log('✅ Botão sync adicionado na navbar');
+    }
+}
+
+// Adicionar botão sync na navbar
+document.addEventListener('DOMContentLoaded', function() {
+    adicionarBotaoSyncNavbar();
+});
