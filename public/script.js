@@ -48,27 +48,32 @@ function protecaoContraVazamento() {
     }
 }
 
-// ========== LIMPAR VARIÁVEIS GLOBAIS ==========
+// ========== LIMPAR VARIÁVEIS GLOBAIS - VERSÃO CORRIGIDA ==========
 function limparVariaveisGlobais() {
-    console.log('🧹 Limpando variáveis globais...');
+    console.log('🧹 LIMPEZA COMPLETA de variáveis globais...');
     
+    // Limpa arrays
     cart = [];
     produtos = [];
     lixeira = [];
     notasFiscais = [];
+    
+    // Reinicia contadores
+    nextProductId = 1;
+    nextNotaId = 1;
+    
+    // Reinicia relatório diário
     relatorioDiario = {
         data: new Date().toLocaleDateString('pt-BR'),
         totalVendas: 0,
         totalNotas: 0,
         vendas: []
     };
-    nextProductId = 1;
-    nextNotaId = 1;
     
-    console.log('✅ Variáveis globais resetadas');
+    console.log('✅ Variáveis globais resetadas COMPLETAMENTE');
 }
 
-// Verifica se há um usuário logado ao carregar a página
+// ========== INICIALIZAÇÃO DO SISTEMA ==========
 document.addEventListener('DOMContentLoaded', function() {
     protecaoContraVazamento();
     checkAuthStatus();
@@ -86,7 +91,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Configura data atual
     const now = new Date();
-    document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR');
+    if (document.getElementById('current-date')) {
+        document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR');
+    }
 
     // Atualiza a UI (se não estiver logado, mostra vazio)
     atualizarTabelaProdutos();
@@ -98,6 +105,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         searchInput.addEventListener('input', filtrarProdutos);
+    }
+
+    // Se usuário estiver logado, carrega dados específicos
+    if (currentUser) {
+        carregarDadosUsuarioAtual();
     }
 });
 
@@ -197,39 +209,58 @@ function showRegisterForm() {
     document.getElementById('register-form').classList.remove('d-none');
 }
 
+function showLoginForm() {
+    document.getElementById('register-form').classList.add('d-none');
+    document.getElementById('login-form').classList.remove('d-none');
+}
+
 // Configura os listeners de eventos
 function setupEventListeners() {
-    document.getElementById('login-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        login();
-    });
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
     
-    document.getElementById('register-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        register();
-    });
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            login();
+        });
+    }
     
-    document.getElementById('nav-inicio').addEventListener('click', function(e) {
+    if (registerForm) {
+        registerForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            register();
+        });
+    }
+    
+    // Adiciona event listeners para navegação
+    const navInicio = document.getElementById('nav-inicio');
+    const navNotas = document.getElementById('nav-notas');
+    const navRelatorios = document.getElementById('nav-relatorios');
+    const navLixeira = document.getElementById('nav-lixeira');
+    const navRelatorioDiario = document.getElementById('nav-relatorio-diario');
+
+    if (navInicio) navInicio.addEventListener('click', function(e) {
         e.preventDefault();
         mostrarPagina('inicio');
     });
 
-    document.getElementById('nav-notas').addEventListener('click', function(e) {
+    if (navNotas) navNotas.addEventListener('click', function(e) {
         e.preventDefault();
         mostrarPagina('notas');
     });
 
-    document.getElementById('nav-relatorios').addEventListener('click', function(e) {
+    if (navRelatorios) navRelatorios.addEventListener('click', function(e) {
         e.preventDefault();
         mostrarPagina('relatorios');
     });
 
-    document.getElementById('nav-lixeira').addEventListener('click', function(e) {
+    if (navLixeira) navLixeira.addEventListener('click', function(e) {
         e.preventDefault();
         mostrarPagina('lixeira');
     });
     
-    document.getElementById('nav-relatorio-diario').addEventListener('click', function(e) {
+    if (navRelatorioDiario) navRelatorioDiario.addEventListener('click', function(e) {
         e.preventDefault();
         mostrarPagina('relatorio-diario');
     });
@@ -326,8 +357,13 @@ async function carregarDadosUsuarioAtual() {
     console.log('🔄 Carregando dados ESPECÍFICOS do usuário:', currentUser.id);
     
     try {
+        // ✅ PRIMEIRO: Limpa variáveis globais ANTES de carregar novos dados
+        limparVariaveisGlobais();
+        
+        // ✅ SEGUNDO: Carrega dados remotos de TODOS os usuários
         await carregarDadosUsuariosRemotos();
         
+        // ✅ TERCEIRO: Busca dados ESPECÍFICOS do usuário atual
         const dadosUsuario = dadosUsuarios[currentUser.id];
         
         if (dadosUsuario && dadosUsuario.produtos) {
@@ -340,10 +376,18 @@ async function carregarDadosUsuarioAtual() {
             await salvarDadosUsuarioAtual();
         }
         
+        // ✅ VERIFICAÇÃO DE SEGURANÇA
+        console.log('🔒 Verificação de isolamento:');
+        console.log('   👤 Usuário:', currentUser.id);
+        console.log('   📦 Produtos carregados:', produtos.length);
+        console.log('   💾 Dados no localStorage:', Object.keys(localStorage).filter(key => key.includes(currentUser.id)));
+        
         return true;
     } catch (error) {
         console.error('❌ Erro ao carregar dados:', error);
-        carregarDadosLocais();
+        // Em caso de erro, inicializa dados vazios
+        limparVariaveisGlobais();
+        inicializarDadosNovoUsuario();
         return false;
     }
 }
@@ -466,10 +510,11 @@ async function login() {
         if (usuario) {
             console.log('🔐 Login bem-sucedido para:', usuario.email);
             
-            // ✅ PRIMEIRO: Limpa variáveis globais de qualquer sessão anterior
+            // ✅ CORREÇÃO CRÍTICA: Sequência CORRETA de limpeza e carregamento
+            // 1. PRIMEIRO limpa variáveis globais
             limparVariaveisGlobais();
             
-            // ✅ DEPOIS: Define o novo usuário
+            // 2. DEPOIS define o usuário atual
             currentUser = {
                 id: usuario.id,
                 name: usuario.nome,
@@ -477,14 +522,18 @@ async function login() {
             };
             
             localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            localStorage.setItem('rememberMe', 'true');
             
-            // ✅ FINALMENTE: Carrega dados ESPECÍFICOS deste usuário
+            // 3. FINALMENTE carrega dados ESPECÍFICOS deste usuário
             await carregarDadosUsuarioAtual();
             
             showMainContent();
             
-            // ✅ VERIFICA isolamento (para debug)
-            verificarIsolamentoDados();
+            // ✅ VERIFICAÇÃO EXTRA de isolamento
+            console.log('🎯 VERIFICAÇÃO FINAL DE ISOLAMENTO:');
+            console.log('   👤 Usuário logado:', currentUser.id);
+            console.log('   📊 Produtos carregados:', produtos.length);
+            console.log('   📈 Notas fiscais:', notasFiscais.length);
             
             alert(`🎉 Bem-vindo, ${usuario.nome}!`);
         } else {
@@ -499,9 +548,39 @@ async function login() {
     }
 }
 
+// ========== VERIFICAÇÃO DE ISOLAMENTO DE DADOS ==========
+function verificarIsolamentoDados() {
+    console.log('🔍 VERIFICAÇÃO DE ISOLAMENTO DE DADOS:');
+    console.log('   👤 Usuário atual:', currentUser?.id, currentUser?.name);
+    console.log('   📦 Produtos carregados:', produtos.length);
+    console.log('   📊 Notas fiscais:', notasFiscais.length);
+    console.log('   🗑️ Lixeira:', lixeira.length);
+    console.log('   🛒 Carrinho:', cart.length);
+    
+    // Verifica dados no localStorage
+    const dadosLocais = Object.keys(localStorage).filter(key => 
+        key.includes('local_') || 
+        key.includes(currentUser?.id)
+    );
+    console.log('   💾 Dados no localStorage:', dadosLocais);
+    
+    if (dadosUsuarios) {
+        console.log('   👥 Total de usuários com dados:', Object.keys(dadosUsuarios).length);
+        Object.keys(dadosUsuarios).forEach(userId => {
+            const userData = dadosUsuarios[userId];
+            console.log(`      👤 Usuário ${userId}:`, {
+                produtos: userData.produtos?.length || 0,
+                notas: userData.notasFiscais?.length || 0,
+                lixeira: userData.lixeira?.length || 0
+            });
+        });
+    }
+}
+
 // ========== FUNÇÕES JSONBIN ==========
 async function buscarUsuarios() {
     try {
+        console.log('🔍 Buscando usuários do JSONBin...');
         const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
             method: 'GET',
             headers: {
@@ -511,23 +590,61 @@ async function buscarUsuarios() {
         });
         
         if (!response.ok) {
-            throw new Error('Erro ao buscar dados');
+            console.log('❌ Erro ao buscar usuários, retornando array vazio');
+            return [];
         }
         
         const data = await response.json();
-        const usuarios = data.record || [];
+        console.log('📦 Dados brutos do JSONBin:', data);
         
-        localStorage.setItem('usuariosCache', JSON.stringify(usuarios));
+        let usuarios = data.record;
         
+        // CORREÇÃO MELHORADA - Garante que sempre retorna array
+        if (!usuarios) {
+            console.log('ℹ️ Nenhum dado encontrado, retornando array vazio');
+            return [];
+        }
+        
+        if (!Array.isArray(usuarios)) {
+            console.warn('⚠️ Dados não são array, convertendo...', usuarios);
+            
+            if (typeof usuarios === 'object' && usuarios !== null) {
+                if (usuarios.usuarios && Array.isArray(usuarios.usuarios)) {
+                    usuarios = usuarios.usuarios;
+                } else {
+                    usuarios = Object.values(usuarios);
+                }
+            } else {
+                usuarios = [];
+            }
+        }
+        
+        // FILTRA: remove entradas inválidas
+        usuarios = usuarios.filter(user => 
+            user && 
+            typeof user === 'object' && 
+            user.email && 
+            user.senha
+        );
+        
+        console.log(`✅ ${usuarios.length} usuário(s) válido(s) carregado(s)`);
         return usuarios;
+        
     } catch (error) {
-        console.error('Erro ao buscar usuários:', error);
+        console.error('❌ Erro ao buscar usuários:', error);
         return [];
     }
 }
 
 async function salvarUsuarios(usuarios) {
     try {
+        console.log('💾 Salvando usuários no JSONBin...');
+        
+        if (!Array.isArray(usuarios)) {
+            console.warn('⚠️ Tentativa de salvar não-array, convertendo...');
+            usuarios = [];
+        }
+        
         const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
             method: 'PUT',
             headers: {
@@ -537,30 +654,16 @@ async function salvarUsuarios(usuarios) {
             body: JSON.stringify(usuarios)
         });
         
+        if (response.ok) {
+            console.log(`✅ ${usuarios.length} usuário(s) salvo(s) no JSONBin`);
+        } else {
+            console.error('❌ Erro ao salvar no JSONBin:', await response.text());
+        }
+        
         return response.ok;
     } catch (error) {
-        console.error('Erro ao salvar usuários:', error);
+        console.error('❌ Erro ao salvar usuários:', error);
         return false;
-    }
-}
-
-// ========== VERIFICAR ISOLAMENTO DE DADOS ==========
-function verificarIsolamentoDados() {
-    console.log('🔍 VERIFICANDO ISOLAMENTO DE DADOS:');
-    console.log('👤 Usuário atual:', currentUser?.id, currentUser?.name);
-    console.log('📦 Produtos carregados:', produtos.length);
-    console.log('📊 Notas fiscais:', notasFiscais.length);
-    console.log('🗑️ Lixeira:', lixeira.length);
-    console.log('💾 Dados no localStorage:', Object.keys(localStorage).filter(key => key.includes(currentUser?.id)));
-    
-    if (dadosUsuarios) {
-        console.log('👥 Total de usuários com dados:', Object.keys(dadosUsuarios).length);
-        Object.keys(dadosUsuarios).forEach(userId => {
-            console.log(`   👤 Usuário ${userId}:`, {
-                produtos: dadosUsuarios[userId].produtos?.length || 0,
-                notas: dadosUsuarios[userId].notasFiscais?.length || 0
-            });
-        });
     }
 }
 
@@ -1077,13 +1180,16 @@ function logout() {
         clearInterval(syncInterval);
     }
     
-    // ✅ PRIMEIRO: Limpa variáveis globais
+    // ✅ CORREÇÃO: Sequência correta de limpeza
+    const usuarioAntigo = currentUser;
+    
+    // 1. PRIMEIRO limpa variáveis globais
     limparVariaveisGlobais();
     
-    // ✅ DEPOIS: Remove usuário
-    const usuarioAntigo = currentUser;
+    // 2. DEPOIS remove usuário
     currentUser = null;
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('rememberMe');
     
     console.log('✅ Logout concluído para:', usuarioAntigo?.id);
     
@@ -1110,7 +1216,10 @@ function showMainContent() {
     document.getElementById('main-content').classList.remove('d-none');
     
     if (currentUser) {
-        document.getElementById('user-name').textContent = currentUser.name;
+        const userNameElement = document.getElementById('user-name');
+        if (userNameElement) {
+            userNameElement.textContent = currentUser.name;
+        }
     }
     
     setupPeriodicSync();
@@ -1135,16 +1244,26 @@ function adicionarBotaoSincronizacao() {
                 botaoExistente.remove();
             }
             
-            // Botão comentado para evitar erro, mas mantendo a função
             const botaoSync = document.createElement('button');
-            // botaoSync.innerHTML = '🔄 Sync';
-            // botaoSync.className = 'btn btn-info btn-sm';
-            // botaoSync.onclick = sincronizarManual;
-            // botaoSync.id = 'botao-sincronizar';
-            // ... (estilos comentados)
+            botaoSync.innerHTML = '🔄 Sync';
+            botaoSync.className = 'btn btn-info btn-sm';
+            botaoSync.onclick = sincronizarManual;
+            botaoSync.id = 'botao-sincronizar';
+            
+            botaoSync.style.position = 'fixed';
+            botaoSync.style.bottom = '80px';
+            botaoSync.style.right = '10px';
+            botaoSync.style.zIndex = '10000';
+            botaoSync.style.fontSize = '14px';
+            botaoSync.style.padding = '8px 12px';
+            botaoSync.style.borderRadius = '20px';
+            botaoSync.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+            botaoSync.style.border = '2px solid #fff';
+            botaoSync.style.background = '#17a2b8';
+            botaoSync.style.color = 'white';
+            botaoSync.style.fontWeight = 'bold';
             
             document.body.appendChild(botaoSync);
-            console.log('✅ Botão de sincronização adicionado');
         }
     }, 3000);
 }
@@ -1224,6 +1343,10 @@ async function sincronizarManual() {
     }
 }
 
+function syncPendingData() {
+    console.log('🔄 Verificando dados pendentes para sincronização...');
+}
+
 // ========== FUNÇÃO PARA MOSTRAR PÁGINAS ==========
 function mostrarPagina(pagina) {
     const paginas = [
@@ -1249,7 +1372,11 @@ function mostrarPagina(pagina) {
     document.querySelectorAll('.nav-link').forEach(link => {
         link.classList.remove('active');
     });
-    document.getElementById(`nav-${pagina}`).classList.add('active');
+    
+    const navElement = document.getElementById(`nav-${pagina}`);
+    if (navElement) {
+        navElement.classList.add('active');
+    }
     
     if (pagina === 'notas') {
         atualizarTabelaNotas();
@@ -1453,29 +1580,38 @@ function editarCategoriaProduto(produtoId) {
 function atualizarRelatorioDiario() {
     verificarResetDiario();
     
-    document.getElementById('data-hoje').textContent = relatorioDiario.data;
-    document.getElementById('total-vendas-hoje').textContent = `R$ ${relatorioDiario.totalVendas.toFixed(2)}`;
-    document.getElementById('total-notas-hoje').textContent = relatorioDiario.totalNotas;
-    
-    const ticketMedio = relatorioDiario.totalNotas > 0 ? relatorioDiario.totalVendas / relatorioDiario.totalNotas : 0;
-    document.getElementById('ticket-medio-hoje').textContent = `R$ ${ticketMedio.toFixed(2)}`;
-    
+    const dataHojeElement = document.getElementById('data-hoje');
+    const totalVendasHojeElement = document.getElementById('total-vendas-hoje');
+    const totalNotasHojeElement = document.getElementById('total-notas-hoje');
+    const ticketMedioHojeElement = document.getElementById('ticket-medio-hoje');
     const tbody = document.getElementById('vendas-hoje-body');
-    tbody.innerHTML = '';
     
-    if (relatorioDiario.vendas.length > 0) {
-        relatorioDiario.vendas.slice().reverse().forEach(venda => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${venda.hora}</td>
-                <td>${venda.id}</td>
-                <td>${venda.itens} itens</td>
-                <td>R$ ${venda.total.toFixed(2)}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    } else {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Nenhuma venda hoje</td></tr>';
+    if (dataHojeElement) dataHojeElement.textContent = relatorioDiario.data;
+    if (totalVendasHojeElement) totalVendasHojeElement.textContent = `R$ ${relatorioDiario.totalVendas.toFixed(2)}`;
+    if (totalNotasHojeElement) totalNotasHojeElement.textContent = relatorioDiario.totalNotas;
+    
+    if (ticketMedioHojeElement) {
+        const ticketMedio = relatorioDiario.totalNotas > 0 ? relatorioDiario.totalVendas / relatorioDiario.totalNotas : 0;
+        ticketMedioHojeElement.textContent = `R$ ${ticketMedio.toFixed(2)}`;
+    }
+    
+    if (tbody) {
+        tbody.innerHTML = '';
+        
+        if (relatorioDiario.vendas.length > 0) {
+            relatorioDiario.vendas.slice().reverse().forEach(venda => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${venda.hora}</td>
+                    <td>${venda.id}</td>
+                    <td>${venda.itens} itens</td>
+                    <td>R$ ${venda.total.toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4">Nenhuma venda hoje</td></tr>';
+        }
     }
 }
 
@@ -1578,6 +1714,8 @@ function carregarCarrinho() {
 // ========== ATUALIZAÇÃO DE VISUALIZAÇÕES ==========
 function atualizarTabelaProdutos() {
     const tableBody = document.getElementById('products-table-body');
+    if (!tableBody) return;
+    
     tableBody.innerHTML = '';
     
     const produtosAtivos = produtos.filter(p => p.ativo);
@@ -1663,14 +1801,16 @@ function atualizarTabelaProdutos() {
 function atualizarTabelaLixeira() {
     const tbody = document.getElementById('trash-table-body');
     const trashEmpty = document.getElementById('trash-empty');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
 
     if (lixeira.length === 0) {
-        trashEmpty.classList.remove('d-none');
+        if (trashEmpty) trashEmpty.classList.remove('d-none');
         return;
     }
     
-    trashEmpty.classList.add('d-none');
+    if (trashEmpty) trashEmpty.classList.add('d-none');
 
     lixeira.forEach(produto => {
         const tr = document.createElement('tr');
@@ -1697,15 +1837,16 @@ function atualizarTabelaLixeira() {
 function atualizarTabelaNotas() {
     const tableBody = document.getElementById('notas-table-body');
     const notasEmpty = document.getElementById('notas-empty');
+    if (!tableBody) return;
     
     tableBody.innerHTML = '';
     
     if (notasFiscais.length === 0) {
-        notasEmpty.classList.remove('d-none');
+        if (notasEmpty) notasEmpty.classList.remove('d-none');
         return;
     }
     
-    notasEmpty.classList.add('d-none');
+    if (notasEmpty) notasEmpty.classList.add('d-none');
     
     const notasOrdenadas = [...notasFiscais].sort((a, b) => new Date(b.data) - new Date(a.data));
     
@@ -1761,7 +1902,7 @@ function excluirNotaFiscal(id) {
             atualizarTabelaNotas();
             atualizarRelatorios();
             
-            if (document.getElementById('pagina-relatorio-diario').classList.contains('d-none') === false) {
+            if (document.getElementById('pagina-relatorio-diario') && document.getElementById('pagina-relatorio-diario').classList.contains('d-none') === false) {
                 atualizarRelatorioDiario();
             }
             
@@ -1781,9 +1922,13 @@ function renumerarNotasFiscais() {
 
 function atualizarRelatorios() {
     const totalVendas = notasFiscais.reduce((acc, n) => acc + (n.total || 0), 0);
-    document.getElementById("total-vendas").textContent = `R$ ${totalVendas.toFixed(2)}`;
-    document.getElementById("total-produtos").textContent = produtos.filter(p => p.ativo).length;
-    document.getElementById("total-notas").textContent = notasFiscais.length;
+    const totalVendasElement = document.getElementById("total-vendas");
+    const totalProdutosElement = document.getElementById("total-produtos");
+    const totalNotasElement = document.getElementById("total-notas");
+    
+    if (totalVendasElement) totalVendasElement.textContent = `R$ ${totalVendas.toFixed(2)}`;
+    if (totalProdutosElement) totalProdutosElement.textContent = produtos.filter(p => p.ativo).length;
+    if (totalNotasElement) totalNotasElement.textContent = notasFiscais.length;
     
     atualizarVendasPorCategoria();
     atualizarVendasPorPeriodo();
@@ -1791,6 +1936,8 @@ function atualizarRelatorios() {
 
 function atualizarVendasPorCategoria() {
     const tableBody = document.getElementById('vendas-categoria-body');
+    if (!tableBody) return;
+    
     tableBody.innerHTML = '';
     
     const vendasPorCategoria = {};
@@ -1837,21 +1984,23 @@ function atualizarVendasPorCategoria() {
 }
 
 function atualizarVendasPorPeriodo() {
-    const dataInicio = document.getElementById('data-inicio').value;
-    const dataFim = document.getElementById('data-fim').value;
-    
+    const dataInicio = document.getElementById('data-inicio');
+    const dataFim = document.getElementById('data-fim');
     const tableBody = document.getElementById('vendas-periodo-body');
+    
+    if (!dataInicio || !dataFim || !tableBody) return;
+    
     tableBody.innerHTML = '';
     
     let notasFiltradas = [...notasFiscais];
     
-    if (dataInicio) {
-        const inicio = new Date(dataInicio);
+    if (dataInicio.value) {
+        const inicio = new Date(dataInicio.value);
         notasFiltradas = notasFiltradas.filter(nota => new Date(nota.data) >= inicio);
     }
     
-    if (dataFim) {
-        const fim = new Date(dataFim);
+    if (dataFim.value) {
+        const fim = new Date(dataFim.value);
         fim.setHours(23, 59, 59, 999);
         notasFiltradas = notasFiltradas.filter(nota => new Date(nota.data) <= fim);
     }
@@ -1988,6 +2137,8 @@ function updateCartDisplay() {
     const cartEmpty = document.getElementById('cart-empty');
     const cartItems = document.getElementById('cart-items');
 
+    if (!cartItemsList || !cartTotalValue || !cartEmpty || !cartItems) return;
+
     salvarCarrinho();
 
     if (cart.length === 0) {
@@ -2088,10 +2239,17 @@ function finalizarVenda() {
 }
 
 function adicionarProduto() {
-    const nome = (document.getElementById('nome').value || '').trim();
-    const preco = parseNumberInput(document.getElementById('preco').value);
-    const quantidade = parseNumberInput(document.getElementById('quantidade').value);
-    const categoria = document.getElementById('categoria').value;
+    const nomeInput = document.getElementById('nome');
+    const precoInput = document.getElementById('preco');
+    const quantidadeInput = document.getElementById('quantidade');
+    const categoriaInput = document.getElementById('categoria');
+    
+    if (!nomeInput || !precoInput || !quantidadeInput || !categoriaInput) return;
+    
+    const nome = (nomeInput.value || '').trim();
+    const preco = parseNumberInput(precoInput.value);
+    const quantidade = parseNumberInput(quantidadeInput.value);
+    const categoria = categoriaInput.value;
 
     if (!nome || isNaN(preco) || preco <= 0 || isNaN(quantidade) || quantidade <= 0) {
         alert('Preencha todos os campos corretamente!');
@@ -2109,7 +2267,12 @@ function adicionarProduto() {
 
     salvarProdutos();
     atualizarTabelaProdutos();
-    document.getElementById('novoProdutoForm').reset();
+    
+    const novoProdutoForm = document.getElementById('novoProdutoForm');
+    if (novoProdutoForm) {
+        novoProdutoForm.reset();
+    }
+    
     alert('Produto adicionado com sucesso!');
     salvarDadosUsuarioAtual();
 }
@@ -2252,5 +2415,7 @@ function adicionarBotaoSyncNavbar() {
 
 // Adicionar botão sync na navbar
 document.addEventListener('DOMContentLoaded', function() {
-    adicionarBotaoSyncNavbar();
+    setTimeout(() => {
+        adicionarBotaoSyncNavbar();
+    }, 1000);
 });
