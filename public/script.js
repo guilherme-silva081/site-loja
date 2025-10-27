@@ -84,7 +84,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     adicionarCSSMobile();
     adicionarBotaoDesenvolvedor();
-    adicionarBotaoSincronizacao();
     adicionarLinkSecreto();
     
     configurarVisibilidadeRegistro();
@@ -1263,52 +1262,10 @@ function setupPeriodicSync() {
     }, 30000);
 }
 
-// ========== BOTÃO DE SINCRONIZAÇÃO ==========
-function adicionarBotaoSincronizacao() {
-    setTimeout(() => {
-        if (currentUser) {
-            const botaoExistente = document.getElementById('botao-sincronizar');
-            if (botaoExistente) {
-                botaoExistente.remove();
-            }
-            
-            const botaoSync = document.createElement('button');
-            botaoSync.innerHTML = '🔄 Sync';
-            botaoSync.className = 'btn btn-info btn-sm';
-            botaoSync.onclick = sincronizarManual;
-            botaoSync.id = 'botao-sincronizar';
-            
-            botaoSync.style.position = 'fixed';
-            botaoSync.style.bottom = '80px';
-            botaoSync.style.right = '10px';
-            botaoSync.style.zIndex = '10000';
-            botaoSync.style.fontSize = '14px';
-            botaoSync.style.padding = '8px 12px';
-            botaoSync.style.borderRadius = '20px';
-            botaoSync.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
-            botaoSync.style.border = '2px solid #fff';
-            botaoSync.style.background = '#17a2b8';
-            botaoSync.style.color = 'white';
-            botaoSync.style.fontWeight = 'bold';
-            
-            document.body.appendChild(botaoSync);
-        }
-    }, 3000);
-}
-
 function adicionarCSSMobile() {
     const style = document.createElement('style');
     style.innerHTML = `
         @media (max-width: 768px) {
-            #botao-sincronizar {
-                bottom: 70px !important;
-                right: 10px !important;
-                font-size: 16px !important;
-                padding: 12px 16px !important;
-                min-width: 70px;
-                min-height: 50px;
-            }
-            
             #botao-desenvolvedor {
                 bottom: 130px !important;
                 right: 10px !important;
@@ -1330,7 +1287,6 @@ function adicionarCSSMobile() {
         }
         
         @media (hover: none) and (pointer: coarse) {
-            #botao-sincronizar:active,
             #botao-desenvolvedor:active,
             #botao-sair-desenvolvedor:active {
                 transform: scale(0.95);
@@ -1339,36 +1295,6 @@ function adicionarCSSMobile() {
         }
     `;
     document.head.appendChild(style);
-}
-
-async function sincronizarManual() {
-    if (!currentUser) return;
-    
-    const botao = document.getElementById('botao-sincronizar');
-    const originalText = botao.innerHTML;
-    botao.innerHTML = '⏳ Sincronizando...';
-    botao.disabled = true;
-    
-    try {
-        await carregarDadosUsuarioAtual();
-        await salvarDadosUsuarioAtual();
-        
-        botao.innerHTML = '✅ Sincronizado!';
-        setTimeout(() => {
-            botao.innerHTML = originalText;
-            botao.disabled = false;
-        }, 2000);
-        
-        alert('✅ Dados sincronizados entre todos os dispositivos!');
-    } catch (error) {
-        console.error('Erro na sincronização:', error);
-        botao.innerHTML = '❌ Erro';
-        setTimeout(() => {
-            botao.innerHTML = originalText;
-            botao.disabled = false;
-        }, 2000);
-        alert('❌ Erro na sincronização. Verifique sua conexão.');
-    }
 }
 
 function syncPendingData() {
@@ -2424,70 +2350,3 @@ function visualizarNota(id) {
 function imprimirNota() {
     window.print();
 }
-
-// ========== BOTÃO SYNC NA NAVBAR ==========
-function adicionarBotaoSyncNavbar() {
-    const navbar = document.querySelector('.navbar-nav');
-    if (navbar && currentUser) {
-        const itemSync = document.createElement('li');
-        itemSync.className = 'nav-item';
-        itemSync.innerHTML = `
-            <a class="nav-link" href="#" onclick="sincronizarManual(); return false;">
-                <i class="bi bi-arrow-repeat"></i> Sincronizar
-            </a>
-        `;
-        navbar.appendChild(itemSync);
-        console.log('✅ Botão sync adicionado na navbar');
-    }
-}
-
-// Adicionar botão sync na navbar
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        adicionarBotaoSyncNavbar();
-    }, 1000);
-});
-
-// ========== BOTÃO DEBUG PARA VERIFICAR DADOS ==========
-function adicionarBotaoDebug() {
-    const botaoDebug = document.createElement('button');
-    botaoDebug.innerHTML = '🐛 Debug';
-    botaoDebug.className = 'btn btn-warning btn-sm btn-flutuante';
-    botaoDebug.onclick = debugDadosUsuario;
-    botaoDebug.id = 'botao-debug';
-    
-    botaoDebug.style.position = 'fixed';
-    botaoDebug.style.bottom = '230px';
-    botaoDebug.style.right = '10px';
-    botaoDebug.style.zIndex = '10000';
-    botaoDebug.style.fontSize = '12px';
-    botaoDebug.style.padding = '6px 10px';
-    botaoDebug.style.borderRadius = '20px';
-    botaoDebug.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
-    botaoDebug.style.border = '2px solid #fff';
-    botaoDebug.style.fontWeight = 'bold';
-    
-    document.body.appendChild(botaoDebug);
-}
-
-function debugDadosUsuario() {
-    console.log('🐛 DEBUG DOS DADOS DO USUÁRIO:');
-    console.log('👤 Usuário atual:', currentUser);
-    console.log('📦 Produtos:', produtos);
-    console.log('📊 Notas Fiscais:', notasFiscais);
-    console.log('🗑️ Lixeira:', lixeira);
-    
-    // Verifica dados locais
-    const localData = localStorage.getItem(`local_${currentUser?.id}_data`);
-    console.log('💾 Dados locais:', localData ? JSON.parse(localData) : 'Nenhum dado local');
-    
-    // Verifica dados remotos
-    console.log('☁️ Dados remotos para este usuário:', dadosUsuarios[currentUser?.id]);
-    
-    alert('🐛 Verifique o console para ver os dados de debug!');
-}
-
-// Adiciona botão debug
-setTimeout(() => {
-    adicionarBotaoDebug();
-}, 2000);
