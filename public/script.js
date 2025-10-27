@@ -357,37 +357,56 @@ async function carregarDadosUsuarioAtual() {
     console.log('🔄 Carregando dados ESPECÍFICOS do usuário:', currentUser.id);
     
     try {
-        // ✅ PRIMEIRO: Limpa variáveis globais ANTES de carregar novos dados
-        limparVariaveisGlobais();
+        // ✅ PRIMEIRO: Tenta carregar dados LOCAIS (backup offline)
+        console.log('📱 Tentando carregar dados LOCAIS primeiro...');
+        const dadosLocaisExistem = carregarDadosLocais();
         
         // ✅ SEGUNDO: Carrega dados remotos de TODOS os usuários
+        console.log('☁️ Tentando carregar dados REMOTOS...');
         await carregarDadosUsuariosRemotos();
         
         // ✅ TERCEIRO: Busca dados ESPECÍFICOS do usuário atual
-        const dadosUsuario = dadosUsuarios[currentUser.id];
+        const dadosUsuarioRemoto = dadosUsuarios[currentUser.id];
         
-        if (dadosUsuario && dadosUsuario.produtos) {
-            console.log('✅ Dados ESPECÍFICOS encontrados para o usuário', currentUser.id);
-            aplicarDadosUsuario(dadosUsuario);
-            salvarDadosLocais();
+        if (dadosUsuarioRemoto && dadosUsuarioRemoto.produtos) {
+            console.log('✅ Dados REMOTOS encontrados para o usuário', currentUser.id);
+            
+            // Verifica qual conjunto de dados é mais recente
+            const dadosLocais = JSON.parse(localStorage.getItem(`local_${currentUser.id}_data`) || '{}');
+            const lastUpdateLocal = new Date(dadosLocais.lastUpdate || 0);
+            const lastUpdateRemoto = new Date(dadosUsuarioRemoto.lastSync || 0);
+            
+            if (lastUpdateRemoto > lastUpdateLocal) {
+                console.log('🔄 Dados REMOTOS são mais recentes, aplicando...');
+                aplicarDadosUsuario(dadosUsuarioRemoto);
+                salvarDadosLocais();
+            } else {
+                console.log('✅ Dados LOCAIS são mais recentes, mantendo...');
+                // Já temos os dados locais carregados
+            }
+        } else if (dadosLocaisExistem) {
+            console.log('ℹ️ Nenhum dado remoto, mas dados LOCAIS existem para', currentUser.id);
+            // Dados locais já estão carregados, sincroniza com nuvem
+            await salvarDadosUsuarioAtual();
         } else {
-            console.log('🆕 Nenhum dado específico para este usuário, inicializando dados VAZIOS...');
+            console.log('🆕 Nenhum dado local ou remoto, inicializando dados VAZIOS...');
             inicializarDadosNovoUsuario();
             await salvarDadosUsuarioAtual();
         }
         
-        // ✅ VERIFICAÇÃO DE SEGURANÇA
-        console.log('🔒 Verificação de isolamento:');
-        console.log('   👤 Usuário:', currentUser.id);
-        console.log('   📦 Produtos carregados:', produtos.length);
-        console.log('   💾 Dados no localStorage:', Object.keys(localStorage).filter(key => key.includes(currentUser.id)));
-        
+        console.log('📊 Dados finais carregados - Produtos:', produtos.length, 'Notas:', notasFiscais.length);
         return true;
+        
     } catch (error) {
         console.error('❌ Erro ao carregar dados:', error);
-        // Em caso de erro, inicializa dados vazios
-        limparVariaveisGlobais();
-        inicializarDadosNovoUsuario();
+        // Tenta carregar dados locais como fallback
+        console.log('🔄 Tentando fallback para dados locais...');
+        const dadosLocaisExistem = carregarDadosLocais();
+        
+        if (!dadosLocaisExistem) {
+            console.log('⚠️ Nenhum dado local encontrado, inicializando vazio');
+            inicializarDadosNovoUsuario();
+        }
         return false;
     }
 }
@@ -434,9 +453,9 @@ async function carregarDadosUsuariosRemotos() {
     dadosUsuarios = await buscarDadosUsuarios();
 }
 
-// Salva dados localmente como backup
+// Salva dados localmente como backup - RETORNA se existiam dados
 function salvarDadosLocais() {
-    if (!currentUser) return;
+    if (!currentUser) return false;
     
     const data = {
         produtos,
@@ -449,19 +468,28 @@ function salvarDadosLocais() {
     };
     
     localStorage.setItem(`local_${currentUser.id}_data`, JSON.stringify(data));
+    return true;
 }
 
-// Carrega dados locais (quando offline)
+// Carrega dados locais (quando offline) - RETORNA se conseguiu carregar
 function carregarDadosLocais() {
-    if (!currentUser) return;
+    if (!currentUser) return false;
     
     const localData = localStorage.getItem(`local_${currentUser.id}_data`);
     
     if (localData) {
-        const data = JSON.parse(localData);
-        aplicarDadosUsuario(data);
+        console.log('📱 Dados LOCAIS encontrados para:', currentUser.id);
+        try {
+            const data = JSON.parse(localData);
+            aplicarDadosUsuario(data);
+            return true;
+        } catch (error) {
+            console.error('❌ Erro ao parsear dados locais:', error);
+            return false;
+        }
     } else {
-        inicializarDadosNovoUsuario();
+        console.log('📱 Nenhum dado LOCAL encontrado para:', currentUser.id);
+        return false;
     }
 }
 
@@ -2419,3 +2447,47 @@ document.addEventListener('DOMContentLoaded', function() {
         adicionarBotaoSyncNavbar();
     }, 1000);
 });
+
+// ========== BOTÃO DEBUG PARA VERIFICAR DADOS ==========
+function adicionarBotaoDebug() {
+    const botaoDebug = document.createElement('button');
+    botaoDebug.innerHTML = '🐛 Debug';
+    botaoDebug.className = 'btn btn-warning btn-sm btn-flutuante';
+    botaoDebug.onclick = debugDadosUsuario;
+    botaoDebug.id = 'botao-debug';
+    
+    botaoDebug.style.position = 'fixed';
+    botaoDebug.style.bottom = '230px';
+    botaoDebug.style.right = '10px';
+    botaoDebug.style.zIndex = '10000';
+    botaoDebug.style.fontSize = '12px';
+    botaoDebug.style.padding = '6px 10px';
+    botaoDebug.style.borderRadius = '20px';
+    botaoDebug.style.boxShadow = '0 2px 10px rgba(0,0,0,0.3)';
+    botaoDebug.style.border = '2px solid #fff';
+    botaoDebug.style.fontWeight = 'bold';
+    
+    document.body.appendChild(botaoDebug);
+}
+
+function debugDadosUsuario() {
+    console.log('🐛 DEBUG DOS DADOS DO USUÁRIO:');
+    console.log('👤 Usuário atual:', currentUser);
+    console.log('📦 Produtos:', produtos);
+    console.log('📊 Notas Fiscais:', notasFiscais);
+    console.log('🗑️ Lixeira:', lixeira);
+    
+    // Verifica dados locais
+    const localData = localStorage.getItem(`local_${currentUser?.id}_data`);
+    console.log('💾 Dados locais:', localData ? JSON.parse(localData) : 'Nenhum dado local');
+    
+    // Verifica dados remotos
+    console.log('☁️ Dados remotos para este usuário:', dadosUsuarios[currentUser?.id]);
+    
+    alert('🐛 Verifique o console para ver os dados de debug!');
+}
+
+// Adiciona botão debug
+setTimeout(() => {
+    adicionarBotaoDebug();
+}, 2000);
