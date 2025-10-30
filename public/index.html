@@ -79,6 +79,11 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link" href="#" id="nav-carrinho">
+                                <i class="bi bi-cart me-1"></i>Carrinho <span id="cart-badge" class="badge bg-primary ms-1 d-none">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link" href="#" id="nav-notas">
                                 <i class="bi bi-receipt me-1"></i>Histórico de vendas
                             </a>
@@ -160,33 +165,6 @@
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Carrinho de Compras -->
-                        <div class="card card-custom mt-4">
-                            <div class="card-header card-header-custom py-3">
-                                <h5 class="m-0"><i class="bi bi-cart me-2"></i>Carrinho de Compras</h5>
-                            </div>
-                            <div class="card-body">
-                                <div id="cart-empty" class="text-center py-4">
-                                    <i class="bi bi-cart-x" style="font-size: 3rem;"></i>
-                                    <p class="mt-3">Seu carrinho está vazio</p>
-                                </div>
-                                <div id="cart-items" class="d-none">
-                                    <div class="cart-items">
-                                        <div id="cart-items-list">
-                                            <!-- Itens do carrinho serão adicionados aqui -->
-                                        </div>
-                                        <div class="cart-total">
-                                            Total: R$ <span id="cart-total-value">0,00</span>
-                                        </div>
-                                    </div>
-                                   <div class="d-flex justify-content-between mt-3">
-                                        <button class="btn btn-danger" onclick="cancelarCompra()">Cancelar Compra</button>
-                                        <button class="btn btn-success" onclick="finalizarVenda()">Finalizar Venda</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                     
                     <!-- Sidebar -->
@@ -240,10 +218,46 @@
                             </div>
                             <div class="card-body">
                                 <p><strong>1.</strong> Digite a quantidade e clique em <i class="bi bi-cart-plus text-primary"></i> para adicionar ao carrinho</p>
-                                <p><strong>2.</strong> Clique em "Finalizar Venda" para registrar a venda</p>
+                                <p><strong>2.</strong> Clique em <i class="bi bi-cart text-primary"></i> no menu para ver o carrinho e finalizar a venda</p>
                                 <p><strong>3.</strong> Use <i class="bi bi-plus-circle text-success"></i> para aumentar estoque</p>
                                 <p><strong>4.</strong> Use <i class="bi bi-dash-circle text-warning"></i> para diminuir estoque</p>
                                 <p><strong>5.</strong> Use <i class="bi bi-trash text-danger"></i> para mover produtos para a lixeira</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Página Carrinho -->
+            <div id="pagina-carrinho" class="d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="bi bi-cart me-2"></i>Carrinho de Compras</h2>
+                    <button class="btn btn-outline-primary" onclick="voltarParaInicio()">
+                        <i class="bi bi-arrow-left me-1"></i>Voltar para Início
+                    </button>
+                </div>
+
+                <div class="card card-custom">
+                    <div class="card-header card-header-custom py-3">
+                        <h5 class="m-0"><i class="bi bi-cart me-2"></i>Itens no Carrinho</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="cart-empty" class="text-center py-4">
+                            <i class="bi bi-cart-x" style="font-size: 3rem;"></i>
+                            <p class="mt-3">Seu carrinho está vazio</p>
+                        </div>
+                        <div id="cart-items" class="d-none">
+                            <div class="cart-items">
+                                <div id="cart-items-list">
+                                    <!-- Itens do carrinho serão adicionados aqui -->
+                                </div>
+                                <div class="cart-total">
+                                    Total: R$ <span id="cart-total-value">0,00</span>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between mt-3">
+                                <button class="btn btn-danger" onclick="cancelarCompra()">Cancelar Compra</button>
+                                <button class="btn btn-success" onclick="finalizarVenda()">Finalizar Venda</button>
                             </div>
                         </div>
                     </div>

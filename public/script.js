@@ -120,8 +120,8 @@ function configurarVisibilidadeRegistro() {
     
     if (MODO_CRIAR_CONTA_DESENVOLVEDOR && loginContainer) {
         if (registerLink) {
-            registerLink.innerHTML = '🔒 Criar Conta (Apenas Desenvolvedor)';
-            registerLink.style.color = '#ffc107';
+            registerLink.innerHTML = 'GMarket';
+            registerLink.style.color = '#33ff00ff';
             registerLink.style.fontWeight = 'bold';
         }
         
@@ -234,6 +234,7 @@ function setupEventListeners() {
     
     // Adiciona event listeners para navegação
     const navInicio = document.getElementById('nav-inicio');
+    const navCarrinho = document.getElementById('nav-carrinho');
     const navNotas = document.getElementById('nav-notas');
     const navRelatorios = document.getElementById('nav-relatorios');
     const navLixeira = document.getElementById('nav-lixeira');
@@ -242,6 +243,11 @@ function setupEventListeners() {
     if (navInicio) navInicio.addEventListener('click', function(e) {
         e.preventDefault();
         mostrarPagina('inicio');
+    });
+
+    if (navCarrinho) navCarrinho.addEventListener('click', function(e) {
+        e.preventDefault();
+        mostrarPagina('carrinho');
     });
 
     if (navNotas) navNotas.addEventListener('click', function(e) {
@@ -1305,6 +1311,7 @@ function syncPendingData() {
 function mostrarPagina(pagina) {
     const paginas = [
         'pagina-inicio',
+        'pagina-carrinho',
         'pagina-notas', 
         'pagina-relatorios',
         'pagina-lixeira',
@@ -1340,6 +1347,8 @@ function mostrarPagina(pagina) {
         atualizarTabelaLixeira();
     } else if (pagina === 'relatorio-diario') {
         atualizarRelatorioDiario();
+    } else if (pagina === 'carrinho') {
+        atualizarPaginaCarrinho();
     }
 }
 
@@ -2085,15 +2094,34 @@ function addToCart(produtoId) {
     input.value = 0;
 }
 
+// ========== FUNÇÕES DO CARRINHO ==========
 function updateCartDisplay() {
+    const cartBadge = document.getElementById('cart-badge');
+    
+    // Atualizar badge no navbar
+    const totalItens = cart.reduce((total, item) => total + item.quantity, 0);
+    if (totalItens > 0) {
+        cartBadge.textContent = totalItens;
+        cartBadge.classList.remove('d-none');
+    } else {
+        cartBadge.classList.add('d-none');
+    }
+    
+    salvarCarrinho();
+    
+    // Se estiver na página do carrinho, atualizar também
+    if (!document.getElementById('pagina-carrinho').classList.contains('d-none')) {
+        atualizarPaginaCarrinho();
+    }
+}
+
+function atualizarPaginaCarrinho() {
     const cartItemsList = document.getElementById('cart-items-list');
     const cartTotalValue = document.getElementById('cart-total-value');
     const cartEmpty = document.getElementById('cart-empty');
     const cartItems = document.getElementById('cart-items');
 
     if (!cartItemsList || !cartTotalValue || !cartEmpty || !cartItems) return;
-
-    salvarCarrinho();
 
     if (cart.length === 0) {
         cartEmpty.classList.remove('d-none');
