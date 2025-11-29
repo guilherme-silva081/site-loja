@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lojinha - Sistema Completo</title>
+    <title>GMarket - Sistema Completo</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
     <!-- Tela de Login (inicialmente visível) -->
     <div id="login-container" class="login-container">
         <div class="login-card">
-            <h2 class="text-center mb-4"><i class="bi bi-shop-window me-2"></i>Lojinha</h2>
+            <h2 class="text-center mb-4"><i class="bi bi-shop-window me-2"></i>GMarket</h2>
             <form id="login-form">
                 <div class="mb-3">
                     <label for="email" class="form-label">E-mail</label>
@@ -64,7 +65,7 @@
         <nav class="navbar navbar-expand-lg navbar-dark navbar-custom mb-4">
             <div class="container-fluid">
                 <a class="navbar-brand fw-bold" href="#">
-                    <i class="bi bi-shop-window me-2"></i>Lojinha - Sistema Completo
+                    <i class="bi bi-shop-window me-2"></i>GMarket - Sistema Completo
                 </a>
                 
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -103,6 +104,24 @@
                                 <i class="bi bi-calendar-day me-1"></i>Hoje
                             </a>
                         </li>
+                        <!-- Nova Aba: Controle de Lucro -->
+                        <li class="nav-item">
+                            <!-- <a class="nav-link" href="#" id="nav-lucro">
+                                <i class="bi bi-graph-up me-1"></i>Controle de Lucro
+                            </a> -->
+                        </li>
+                        <!-- NOVA ABA: Fluxo de Caixa -->
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" id="nav-fluxo-caixa">
+                                <i class="bi bi-cash-coin me-1"></i>Fluxo de Caixa
+                            </a>
+                        </li>
+                        <!-- NOVA ABA: Análise Financeira -->
+                        <!-- <li class="nav-item">
+                            <a class="nav-link" href="#" id="nav-analise-financeira">
+                                <i class="bi bi-graph-up-arrow me-1"></i>Análise Financeira
+                            </a>
+                        </li> -->
                     </ul>
                     
                     <div class="d-flex align-items-center">
@@ -123,7 +142,7 @@
                 </div>
             </div>
         </nav>
-
+        
         <!-- Restante do conteúdo -->
         <div class="container-fluid">
             <!-- Página Inicial -->
@@ -183,6 +202,11 @@
                                     <div class="mb-3">
                                         <label for="preco" class="form-label">Preço</label>
                                         <input type="number" step="0.01" class="form-control" id="preco" name="preco" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="custo" class="form-label">Preço de Custo/Compra (R$)</label>
+                                        <input type="number" step="0.01" class="form-control" id="custo" placeholder="0.00" value="0">
+                                        <div class="form-text">Quanto você pagou para comprar este produto</div>
                                     </div>
                                     <div class="mb-3">
                                         <label for="quantidade" class="form-label">Quantidade</label>
@@ -338,6 +362,24 @@
                                 <p class="text-muted">Notas emitidas</p>
                             </div>
                         </div>
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <!-- <div class="card card-custom report-card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Lucro Total</h5>
+                                <h2 class="text-success" id="total-lucro">R$ 0,00</h2>
+                                <p class="text-muted">Lucro total em vendas</p>
+                            </div>
+                        </div> -->
+                    </div>
+                    <div class="col-md-4 mb-4">
+                        <!-- <div class="card card-custom report-card">
+                            <div class="card-body text-center">
+                                <h5 class="card-title">Margem Geral</h5>
+                                <h2 class="text-info" id="margem-geral">0%</h2>
+                                <p class="text-muted">Margem média</p>
+                            </div>
+                        </div> -->
                     </div>
                 </div>
 
@@ -500,9 +542,502 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Página: Controle de Lucro -->
+            <div id="pagina-lucro" class="d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="bi bi-graph-up me-2"></i> Controle de Lucro</h2>
+                    <div>
+                        <button class="btn btn-success me-2" onclick="exportarRelatorioLucro()">
+                            <i class="bi bi-download"></i> Exportar Relatório
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="voltarParaInicio()">
+                            <i class="bi bi-arrow-left me-1"></i>Voltar para Início
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtros por Período -->
+                <div class="card card-custom mb-4">
+                    <div class="card-header card-header-custom py-3">
+                        <h5 class="m-0"><i class="bi bi-filter me-2"></i>Filtros por Período</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="periodo-lucro" class="form-label">Período</label>
+                                <select class="form-select" id="periodo-lucro" onchange="filtrarLucroPorPeriodo()">
+                                    <option value="hoje">Hoje</option>
+                                    <option value="semana">Esta Semana</option>
+                                    <option value="quinzena">Esta Quinzena</option>
+                                    <option value="mes">Este Mês</option>
+                                    <option value="personalizado">Personalizado</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="data-inicio-lucro" class="form-label">Data Início</label>
+                                <input type="date" class="form-control" id="data-inicio-lucro">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="data-fim-lucro" class="form-label">Data Fim</label>
+                                <input type="date" class="form-control" id="data-fim-lucro">
+                            </div>
+                            <div class="col-md-3 d-flex align-items-end">
+                                <button class="btn btn-primary-custom w-100" onclick="filtrarLucroPorPeriodo()">
+                                    <i class="bi bi-funnel me-1"></i>Filtrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cards de Resumo -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card card-investimento">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Investido</h5>
+                                <h3 class="card-text" id="resumo-investimento">R$ 0.00</h3>
+                                <small class="text-muted" id="resumo-investimento-periodo">Valor total em custos</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card card-estoque">
+                            <div class="card-body">
+                                <h5 class="card-title">Valor em Estoque</h5>
+                                <h3 class="card-text" id="resumo-valor-estoque">R$ 0.00</h3>
+                                <small class="text-muted" id="resumo-estoque-periodo">Valor total de venda</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card card-lucro">
+                            <div class="card-body">
+                                <h5 class="card-title">Lucro Potencial</h5>
+                                <h3 class="card-text" id="resumo-lucro-potencial">R$ 0.00</h3>
+                                <small class="text-muted" id="resumo-lucro-periodo">Lucro total potencial</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h5 class="card-title">Margem Média</h5>
+                                <h3 class="card-text" id="resumo-margem">0%</h3>
+                                <small class="text-muted" id="resumo-margem-periodo">Margem sobre custo</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Análise de Vendas vs Compras -->
+                <div class="card card-custom mb-4">
+                    <div class="card-header card-header-custom py-3">
+                        <h5 class="m-0"><i class="bi bi-bar-chart-line me-2"></i>Análise Financeira do Período</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card bg-success text-white mb-3">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Vendas Realizadas</h5>
+                                        <h3 id="vendas-realizadas-periodo">R$ 0,00</h3>
+                                        <small>Total de vendas no período</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-danger text-white mb-3">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Custo das Vendas</h5>
+                                        <h3 id="custo-vendas-periodo">R$ 0,00</h3>
+                                        <small>Custo total das vendas</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-primary text-white mb-3">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Lucro Real</h5>
+                                        <h3 id="lucro-real-periodo">R$ 0,00</h3>
+                                        <small>Lucro real no período</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card bg-warning text-dark mb-3">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Margem Real</h5>
+                                        <h3 id="margem-real-periodo">0%</h3>
+                                        <small>Margem sobre vendas realizadas</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-info text-white mb-3">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Ticket Médio</h5>
+                                        <h3 id="ticket-medio-periodo">R$ 0,00</h3>
+                                        <small>Valor médio por venda</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de Lucro -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Produto</th>
+                                        <th>Categoria</th>
+                                        <th class="text-end">Custo (R$)</th>
+                                        <th class="text-end">Venda (R$)</th>
+                                        <th class="text-center">Quantidade</th>
+                                        <th class="text-end">Investimento</th>
+                                        <th class="text-end">Valor Estoque</th>
+                                        <th class="text-end">Lucro Total</th>
+                                        <th class="text-end">Margem</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabela-lucro-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NOVA PÁGINA: Fluxo de Caixa -->
+            <div id="pagina-fluxo-caixa" class="d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="bi bi-cash-coin me-2"></i> Fluxo de Caixa</h2>
+                    <div>
+                        <button class="btn btn-success me-2" onclick="exportarFluxoCaixa()">
+                            <i class="bi bi-download"></i> Exportar Relatório
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="voltarParaInicio()">
+                            <i class="bi bi-arrow-left me-1"></i>Voltar para Início
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Formulário de Nova Movimentação -->
+                <div class="card card-custom mb-4">
+                    <div class="card-header card-header-custom py-3">
+                        <h5 class="m-0"><i class="bi bi-plus-circle me-2"></i>Nova Movimentação</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <label for="movimentacao-tipo" class="form-label">Tipo</label>
+                                <select class="form-select" id="movimentacao-tipo">
+                                    <option value="entrada">Entrada</option>
+                                    <option value="saida">Saída</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="movimentacao-categoria" class="form-label">Categoria</label>
+                                <select class="form-select" id="movimentacao-categoria">
+                                    <option value="Venda">Venda</option>
+                                    <option value="Compra">Compra</option>
+                                    <option value="Despesa">Despesa</option>
+                                    <option value="Investimento">Investimento</option>
+                                    <option value="Outros">Outros</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="movimentacao-valor" class="form-label">Valor (R$)</label>
+                                <input type="number" step="0.01" class="form-control" id="movimentacao-valor" placeholder="0.00">
+                            </div>
+                            <div class="col-md-3">
+                                <label for="movimentacao-descricao" class="form-label">Descrição</label>
+                                <input type="text" class="form-control" id="movimentacao-descricao" placeholder="Descrição da movimentação">
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-primary-custom" onclick="adicionarMovimentacao()">
+                                <i class="bi bi-check-circle me-2"></i>Adicionar Movimentação
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumo do Fluxo de Caixa -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Total de Entradas</h5>
+                                <h3 class="card-text" id="total-entradas">R$ 0,00</h3>
+                                <small>Valor total de entradas</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Total de Saídas</h5>
+                                <h3 class="card-text" id="total-saidas">R$ 0,00</h3>
+                                <small>Valor total de saídas</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-primary text-white">
+                            <div class="card-body">
+                                <h5 class="card-title">Saldo Atual</h5>
+                                <h3 class="card-text" id="saldo-atual">R$ 0,00</h3>
+                                <small>Saldo atual do caixa</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="card card-custom mb-4">
+                    <div class="card-header card-header-custom py-3">
+                        <h5 class="m-0"><i class="bi bi-filter me-2"></i>Filtrar por Período</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label for="data-inicio-movimentacoes" class="form-label">Data Início</label>
+                                <input type="date" class="form-control" id="data-inicio-movimentacoes">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="data-fim-movimentacoes" class="form-label">Data Fim</label>
+                                <input type="date" class="form-control" id="data-fim-movimentacoes">
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button class="btn btn-primary-custom w-100" onclick="filtrarMovimentacoes()">
+                                    <i class="bi bi-funnel me-1"></i>Filtrar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumo do Período Filtrado -->
+                <div class="card card-custom mb-4">
+                    <div class="card-header card-header-custom py-3">
+                        <h5 class="m-0"><i class="bi bi-bar-chart me-2"></i>Resumo do Período Filtrado</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4 text-center">
+                                <h6>Entradas no Período</h6>
+                                <h4 class="text-success" id="entradas-periodo">R$ 0,00</h4>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <h6>Saídas no Período</h6>
+                                <h4 class="text-danger" id="saidas-periodo">R$ 0,00</h4>
+                            </div>
+                            <div class="col-md-4 text-center">
+                                <h6>Saldo do Período</h6>
+                                <h4 class="text-primary" id="saldo-periodo">R$ 0,00</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabela de Movimentações -->
+                <div class="card card-custom">
+                    <div class="card-header card-header-custom py-3">
+                        <h5 class="m-0"><i class="bi bi-list me-2"></i>Movimentações</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Tipo</th>
+                                        <th>Categoria</th>
+                                        <th>Descrição</th>
+                                        <th class="text-end">Valor (R$)</th>
+                                        <th class="text-center">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="movimentacoes-body">
+                                    <!-- Movimentações serão carregadas aqui -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PÁGINA DE ANÁLISE FINANCEIRA -->
+            <div id="pagina-analise-financeira" class="d-none">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="bi bi-graph-up-arrow me-2"></i> Análise Financeira por Período</h2>
+                    <div>
+                        <button class="btn btn-success me-2" onclick="exportarAnaliseFinanceira()">
+                            <i class="bi bi-download"></i> Exportar
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="voltarParaInicio()">
+                            <i class="bi bi-arrow-left me-1"></i>Voltar para Início
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="card card-custom mb-4">
+                    <div class="card-header card-header-custom py-3">
+                        <h5 class="m-0"><i class="bi bi-funnel me-2"></i> Filtros do Período</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-4">
+                                <label for="data-inicio-analise" class="form-label">Data Início</label>
+                                <input type="date" class="form-control" id="data-inicio-analise">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="data-fim-analise" class="form-label">Data Fim</label>
+                                <input type="date" class="form-control" id="data-fim-analise">
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-primary w-100" onclick="calcularAnaliseFinanceira()">
+                                    <i class="bi bi-calculator"></i> Calcular Análise
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumo Financeiro -->
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="card border-primary">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-primary"><i class="bi bi-cash-coin"></i> Vendas</h5>
+                                <h3 class="text-primary" id="total-vendas-periodo">R$ 0,00</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border-warning">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-warning"><i class="bi bi-cart"></i> Compras</h5>
+                                <h3 class="text-warning" id="total-compras-periodo">R$ 0,00</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-success"><i class="bi bi-graph-up-arrow"></i> Lucro</h5>
+                                <h3 class="text-success" id="lucro-periodo">R$ 0,00</h3>
+                                <small class="text-muted" id="margem-periodo">0%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border-info">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-info"><i class="bi bi-wallet2"></i> Saldo</h5>
+                                <h3 class="text-info" id="saldo-periodo-analise">R$ 0,00</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detalhamento de Fluxo -->
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-success">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-success"><i class="bi bi-arrow-down-circle"></i> Entradas</h5>
+                                <h3 class="text-success" id="total-entradas-periodo">R$ 0,00</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card border-danger">
+                            <div class="card-body text-center">
+                                <h5 class="card-title text-danger"><i class="bi bi-arrow-up-circle"></i> Saídas</h5>
+                                <h3 class="text-danger" id="total-saidas-periodo">R$ 0,00</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabelas Detalhadas -->
+                <div class="row">
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="bi bi-receipt"></i> Vendas Realizadas</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Nota</th>
+                                                <th>Data</th>
+                                                <th>Cliente</th>
+                                                <th class="text-end">Total</th>
+                                                <th class="text-end">Lucro</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="vendas-analise-periodo-body">
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-4">
+                                                    <i class="bi bi-info-circle"></i><br>
+                                                    Selecione um período para visualizar as vendas
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-4">
+                        <div class="card">
+                            <div class="card-header bg-warning text-dark">
+                                <h5 class="mb-0"><i class="bi bi-cart"></i> Compras Realizadas</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Data</th>
+                                                <th>Produto</th>
+                                                <th class="text-center">Qtd</th>
+                                                <th class="text-end">Custo Unit.</th>
+                                                <th class="text-end">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="compras-analise-periodo-body">
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-4">
+                                                    <i class="bi bi-info-circle"></i><br>
+                                                    Selecione um período para visualizar as compras
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Modal Nota Fiscal -->
+        <!-- Modal Nota Fiscal Atualizada -->
         <div class="modal fade" id="notaFiscalModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
@@ -518,7 +1053,7 @@
                                         <table>
                                             <tr>
                                                 <td class="title">
-                                                    <h3>Lojinha</h3>
+                                                    <h3>Nota</h3>
                                                 </td>
                                                 <td>
                                                     Nota #: <span id="nota-id"></span><br>
@@ -533,7 +1068,7 @@
                                         <table>
                                             <tr>
                                                 <td>
-                                                    Lojinha
+                                                    Nota
                                                 </td>
                                                 <td>
                                                     Cliente: <span id="nota-cliente"></span><br>
@@ -544,23 +1079,35 @@
                                 </tr>
                                 <tr class="heading">
                                     <td>Item</td>
-                                    <td>Preço</td>
+                                    <!-- <td class="text-center">Quantidade</td> -->
+                                    <!-- <td class="text-end">Preço Venda</td>
+                                    <td class="text-end">Custo</td>
+                                    <td class="text-end">Lucro</td>
+                                    <td class="text-end">Margem</td> -->
                                 </tr>
                                 <tbody id="nota-itens">
                                     <!-- Itens da nota fiscal -->
                                 </tbody>
                                 <tr class="total">
-                                    <td></td>
-                                    <td>Total: R$ <span id="nota-total"></span></td>
+                                    <td colspan="5">Total Venda: R$ <span id="nota-total"></span></td>
                                 </tr>
+                                <!-- <tr class="total">
+                                    <td colspan="5">Total Custo: R$ <span id="nota-custo-total"></span></td>
+                                </tr>
+                                <tr class="total">
+                                    <td colspan="5">Lucro Total: R$ <span id="nota-lucro-total"></span></td>
+                                </tr>
+                                <tr class="total">
+                                    <td colspan="5">Margem: <span id="nota-margem"></span></td>
+                                </tr> -->
                             </table>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                        <button type="button" class="btn btn-primary-custom" onclick="imprimirNota()">
+                        <!-- <button type="button" class="btn btn-primary-custom" onclick="imprimirNota()">
                             <i class="bi bi-printer me-1"></i>Imprimir
-                        </button>
+                        </button> -->
                     </div>
                 </div>
             </div>
@@ -568,8 +1115,7 @@
     </div>
 
     <!-- Bootstrap JS -->
-     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="script.js"></script>
-
 </body>
 </html>

@@ -36,6 +36,9 @@ let relatorioDiario = {
     vendas: []
 };
 
+// ========== VARIÁVEIS GLOBAIS DO FLUXO DE CAIXA ==========
+let movimentacoesCaixa = [];
+
 // ========== PROTEÇÃO CONTRA VAZAMENTO DE DADOS ==========
 function protecaoContraVazamento() {
     const usuarioLogado = JSON.parse(localStorage.getItem('currentUser') || 'null');
@@ -57,6 +60,7 @@ function limparVariaveisGlobais() {
     produtos = [];
     lixeira = [];
     notasFiscais = [];
+    movimentacoesCaixa = []; // NOVO: limpa movimentações do caixa
     
     // Reinicia contadores
     nextProductId = 1;
@@ -75,9 +79,25 @@ function limparVariaveisGlobais() {
 
 // ========== INICIALIZAÇÃO DO SISTEMA ==========
 document.addEventListener('DOMContentLoaded', function() {
+    // Configurar event listeners para os filtros do fluxo de caixa
+    const dataInicioMovimentacoes = document.getElementById('data-inicio-movimentacoes');
+    const dataFimMovimentacoes = document.getElementById('data-fim-movimentacoes');
+    
+    if (dataInicioMovimentacoes) {
+        dataInicioMovimentacoes.addEventListener('change', filtrarMovimentacoes);
+    }
+    
+    if (dataFimMovimentacoes) {
+        dataFimMovimentacoes.addEventListener('change', filtrarMovimentacoes);
+    }
+    
+    console.log('✅ Event listeners do fluxo de caixa configurados');
+});
+document.addEventListener('DOMContentLoaded', function() {
     protecaoContraVazamento();
     checkAuthStatus();
     setupEventListeners();
+    configurarFluxoCaixa(); // NOVO: Configura eventos do fluxo de caixa
     checkOnlineStatus();
     
     setInterval(checkOnlineStatus, 30000);
@@ -94,6 +114,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR');
     }
 
+    // Carrega movimentações do caixa
+    carregarMovimentacoesCaixa(); // NOVO
+
     // Atualiza a UI (se não estiver logado, mostra vazio)
     atualizarTabelaProdutos();
     atualizarTabelaNotas();
@@ -108,7 +131,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Se usuário estiver logado, carrega dados específicos
     if (currentUser) {
-        carregarDadosUsuarioAtual();
+        carregarDadosUsuarioAtual().then(() => {
+            // ✅ CORREÇÃO: Verificar integridade após carregar dados
+            setTimeout(verificarIntegridadeFluxoCaixa, 1000);
+        });
     }
 });
 
@@ -239,6 +265,7 @@ function setupEventListeners() {
     const navRelatorios = document.getElementById('nav-relatorios');
     const navLixeira = document.getElementById('nav-lixeira');
     const navRelatorioDiario = document.getElementById('nav-relatorio-diario');
+    const navFluxoCaixa = document.getElementById('nav-fluxo-caixa'); // NOVO
 
     if (navInicio) navInicio.addEventListener('click', function(e) {
         e.preventDefault();
@@ -268,6 +295,12 @@ function setupEventListeners() {
     if (navRelatorioDiario) navRelatorioDiario.addEventListener('click', function(e) {
         e.preventDefault();
         mostrarPagina('relatorio-diario');
+    });
+
+    // NOVO: Event listener para Fluxo de Caixa
+    if (navFluxoCaixa) navFluxoCaixa.addEventListener('click', function(e) {
+        e.preventDefault();
+        mostrarPagina('fluxo-caixa');
     });
 }
 
@@ -329,6 +362,7 @@ async function salvarDadosUsuarioAtual() {
             lixeira: lixeira,
             notasFiscais: notasFiscais,
             relatorioDiario: relatorioDiario,
+            movimentacoesCaixa: movimentacoesCaixa, // NOVO
             nextProductId: nextProductId,
             nextNotaId: nextNotaId,
             lastSync: new Date().toISOString()
@@ -399,7 +433,7 @@ async function carregarDadosUsuarioAtual() {
             await salvarDadosUsuarioAtual();
         }
         
-        console.log('📊 Dados finais carregados - Produtos:', produtos.length, 'Notas:', notasFiscais.length);
+        console.log('📊 Dados finais carregados - Produtos:', produtos.length, 'Notas:', notasFiscais.length, 'Movimentações:', movimentacoesCaixa.length);
         return true;
         
     } catch (error) {
@@ -438,13 +472,22 @@ function aplicarDadosUsuario(dados) {
         vendas: []
     };
 
+    // ✅ CORREÇÃO CRÍTICA: Carregar movimentações do caixa dos dados do usuário
+    if (dados.movimentacoesCaixa) {
+        movimentacoesCaixa = dados.movimentacoesCaixa;
+        console.log('💰 Movimentações carregadas dos dados do usuário:', movimentacoesCaixa.length);
+    } else {
+        // Se não houver movimentações nos dados do usuário, tenta carregar do localStorage
+        carregarMovimentacoesCaixa();
+    }
+
     if (dados.nextProductId) nextProductId = dados.nextProductId;
     else nextProductId = 1;
 
     if (dados.nextNotaId) nextNotaId = dados.nextNotaId;
     else nextNotaId = 1;
     
-    console.log('📊 Dados aplicados - Produtos:', produtos.length, 'Notas:', notasFiscais.length);
+    console.log('📊 Dados aplicados - Produtos:', produtos.length, 'Notas:', notasFiscais.length, 'Movimentações:', movimentacoesCaixa.length);
     
     atualizarTabelaProdutos();
     atualizarTabelaNotas();
@@ -467,12 +510,14 @@ function salvarDadosLocais() {
         lixeira,
         notasFiscais,
         relatorioDiario,
+        movimentacoesCaixa, // ✅ GARANTIR que está incluído
         nextProductId,
         nextNotaId,
         lastUpdate: new Date().toISOString()
     };
     
     localStorage.setItem(`local_${currentUser.id}_data`, JSON.stringify(data));
+    console.log('💾 Dados locais salvos com movimentações:', movimentacoesCaixa.length);
     return true;
 }
 
@@ -505,6 +550,7 @@ function inicializarDadosNovoUsuario() {
     produtos = [];
     lixeira = [];
     notasFiscais = [];
+    movimentacoesCaixa = []; // ✅ INICIALIZAR array vazio
     relatorioDiario = {
         data: new Date().toLocaleDateString('pt-BR'),
         totalVendas: 0,
@@ -567,6 +613,7 @@ async function login() {
             console.log('   👤 Usuário logado:', currentUser.id);
             console.log('   📊 Produtos carregados:', produtos.length);
             console.log('   📈 Notas fiscais:', notasFiscais.length);
+            console.log('   💰 Movimentações caixa:', movimentacoesCaixa.length);
             
             alert(`🎉 Bem-vindo, ${usuario.nome}!`);
         } else {
@@ -589,6 +636,7 @@ function verificarIsolamentoDados() {
     console.log('   📊 Notas fiscais:', notasFiscais.length);
     console.log('   🗑️ Lixeira:', lixeira.length);
     console.log('   🛒 Carrinho:', cart.length);
+    console.log('   💰 Movimentações caixa:', movimentacoesCaixa.length);
     
     // Verifica dados no localStorage
     const dadosLocais = Object.keys(localStorage).filter(key => 
@@ -604,7 +652,8 @@ function verificarIsolamentoDados() {
             console.log(`      👤 Usuário ${userId}:`, {
                 produtos: userData.produtos?.length || 0,
                 notas: userData.notasFiscais?.length || 0,
-                lixeira: userData.lixeira?.length || 0
+                lixeira: userData.lixeira?.length || 0,
+                movimentacoes: userData.movimentacoesCaixa?.length || 0
             });
         });
     }
@@ -1148,6 +1197,415 @@ async function limparTodosUsuarios() {
     }
 }
 
+// ========== CORREÇÃO PARA O FLUXO DE CAIXA ==========
+
+// Adicione esta função para configurar o evento do Fluxo de Caixa
+function configurarFluxoCaixa() {
+    const navFluxoCaixa = document.getElementById('nav-fluxo-caixa');
+    
+    if (navFluxoCaixa) {
+        navFluxoCaixa.addEventListener('click', function(e) {
+            e.preventDefault();
+            mostrarPagina('fluxo-caixa');
+        });
+    }
+}
+
+// ========== FUNÇÕES DO FLUXO DE CAIXA ==========
+
+// 1. CORREÇÃO: Função para inicializar o Fluxo de Caixa
+function atualizarFluxoCaixa() {
+    console.log('🔄 Inicializando Fluxo de Caixa...');
+    
+    // Configurar data atual nos filtros
+    const hoje = new Date().toISOString().split('T')[0];
+    const dataInicioMovimentacoes = document.getElementById('data-inicio-movimentacoes');
+    const dataFimMovimentacoes = document.getElementById('data-fim-movimentacoes');
+    
+    if (dataInicioMovimentacoes && !dataInicioMovimentacoes.value) {
+        dataInicioMovimentacoes.value = hoje;
+    }
+    if (dataFimMovimentacoes && !dataFimMovimentacoes.value) {
+        dataFimMovimentacoes.value = hoje;
+    }
+    
+    // ✅ CORREÇÃO: Atualizar tabela ANTES dos totais para garantir que os dados estejam visíveis
+    console.log('📋 Carregando tabela de movimentações...');
+    atualizarTabelaMovimentacoes();
+    
+    console.log('💰 Calculando totais...');
+    atualizarTotaisFluxoCaixa();
+    
+    console.log('✅ Fluxo de caixa inicializado completamente');
+}
+
+// 2. CORREÇÃO: Função para adicionar movimentação - VERSÃO CORRIGIDA
+function adicionarMovimentacao() {
+    const tipo = document.getElementById('movimentacao-tipo').value;
+    const categoria = document.getElementById('movimentacao-categoria').value;
+    const valorInput = document.getElementById('movimentacao-valor');
+    const descricaoInput = document.getElementById('movimentacao-descricao');
+    
+    const valor = parseFloat(valorInput.value);
+    const descricao = descricaoInput.value.trim();
+
+    if (!valor || valor <= 0) {
+        alert('Por favor, insira um valor válido!');
+        return;
+    }
+
+    if (!descricao) {
+        alert('Por favor, insira uma descrição!');
+        return;
+    }
+
+    const novaMovimentacao = {
+        id: Date.now(),
+        tipo: tipo,
+        categoria: categoria,
+        descricao: descricao,
+        valor: valor,
+        data: new Date().toISOString(),
+        dataFormatada: new Date().toLocaleDateString('pt-BR')
+    };
+
+    movimentacoesCaixa.push(novaMovimentacao);
+    salvarMovimentacoesCaixa();
+    
+    // Limpar formulário
+    valorInput.value = '';
+    descricaoInput.value = '';
+    
+    // Atualizar interface
+    atualizarTotaisFluxoCaixa();
+    atualizarTabelaMovimentacoes();
+    
+    alert('✅ Movimentação adicionada com sucesso!');
+}
+
+// Função para filtrar movimentações
+function filtrarMovimentacoes() {
+    console.log('🔍 Filtrando movimentações...');
+    const dataInicio = document.getElementById('data-inicio-movimentacoes').value;
+    const dataFim = document.getElementById('data-fim-movimentacoes').value;
+    const tbody = document.getElementById('movimentacoes-body');
+
+    if (!tbody) return;
+
+    // ✅ CORREÇÃO: Se não há filtros, mostrar todas as movimentações
+    if (!dataInicio && !dataFim) {
+        console.log('ℹ️ Sem filtros, mostrando todas as movimentações');
+        atualizarTabelaMovimentacoes();
+        atualizarTotaisFluxoCaixa();
+        return;
+    }
+
+    // Filtrar movimentações por período
+    let movimentacoesFiltradas = movimentacoesCaixa.filter(mov => {
+        const dataMov = new Date(mov.data);
+        
+        if (dataInicio && dataMov < new Date(dataInicio)) return false;
+        if (dataFim) {
+            const fim = new Date(dataFim);
+            fim.setHours(23, 59, 59, 999);
+            if (dataMov > fim) return false;
+        }
+        return true;
+    });
+
+    console.log(`📊 Movimentações filtradas: ${movimentacoesFiltradas.length} de ${movimentacoesCaixa.length}`);
+
+    // Ordenar por data (mais recente primeiro)
+    movimentacoesFiltradas.sort((a, b) => new Date(b.data) - new Date(a.data));
+
+    tbody.innerHTML = '';
+
+    if (movimentacoesFiltradas.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-4">
+                    <i class="bi bi-search"></i><br>
+                    Nenhuma movimentação encontrada para o período selecionado
+                </td>
+            </tr>
+        `;
+    } else {
+        movimentacoesFiltradas.forEach(mov => {
+            const tr = document.createElement('tr');
+            const tipoClass = mov.tipo === 'entrada' ? 'text-success' : 'text-danger';
+            const tipoIcon = mov.tipo === 'entrada' ? 'bi-arrow-down-circle' : 'bi-arrow-up-circle';
+            const tipoTexto = mov.tipo === 'entrada' ? 'Entrada' : 'Saída';
+            
+            tr.innerHTML = `
+                <td>${mov.dataFormatada}</td>
+                <td><i class="bi ${tipoIcon} ${tipoClass} me-1"></i> ${tipoTexto}</td>
+                <td>${mov.categoria}</td>
+                <td>${mov.descricao}</td>
+                <td class="text-end ${tipoClass}">${formatarMoeda(mov.valor)}</td>
+                <td class="text-center">
+                    <button class="btn btn-outline-danger btn-sm" onclick="excluirMovimentacao(${mov.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    // ✅ CORREÇÃO: Atualizar totais com base no filtro
+    atualizarTotaisFluxoCaixa();
+}
+
+// Função para exportar fluxo de caixa
+function exportarFluxoCaixa() {
+    if (movimentacoesCaixa.length === 0) {
+        alert('Não há dados para exportar!');
+        return;
+    }
+
+    let csv = 'Data,Tipo,Categoria,Descrição,Valor\n';
+    
+    movimentacoesCaixa.forEach(mov => {
+        csv += `"${mov.dataFormatada}","${mov.tipo === 'entrada' ? 'Entrada' : 'Saída'}","${mov.categoria}","${mov.descricao}","${mov.valor.toFixed(2)}"\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `fluxo_caixa_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert('✅ Relatório exportado com sucesso!');
+}
+
+// ========== FUNÇÃO PARA ATUALIZAR TOTAIS DO FLUXO DE CAIXA - VERSÃO CORRIGIDA ==========
+function atualizarTotaisFluxoCaixa() {
+    const dataInicio = document.getElementById('data-inicio-movimentacoes').value;
+    const dataFim = document.getElementById('data-fim-movimentacoes').value;
+
+    // ✅ CORREÇÃO: Calcular totais com base nas movimentações FILTRADAS
+    let movimentacoesParaCalculo = movimentacoesCaixa;
+    
+    // Se há filtros aplicados, calcular apenas com as movimentações do período
+    if (dataInicio || dataFim) {
+        movimentacoesParaCalculo = movimentacoesCaixa.filter(mov => {
+            const dataMov = new Date(mov.data);
+            
+            if (dataInicio && dataMov < new Date(dataInicio)) return false;
+            if (dataFim) {
+                const fim = new Date(dataFim);
+                fim.setHours(23, 59, 59, 999);
+                if (dataMov > fim) return false;
+            }
+            return true;
+        });
+    }
+
+    // Calcular totais com as movimentações filtradas
+    const totalEntradas = movimentacoesParaCalculo
+        .filter(m => m.tipo === 'entrada')
+        .reduce((total, mov) => total + mov.valor, 0);
+    
+    const totalSaidas = movimentacoesParaCalculo
+        .filter(m => m.tipo === 'saida')
+        .reduce((total, mov) => total + mov.valor, 0);
+    
+    const saldoAtual = totalEntradas - totalSaidas;
+
+    // ✅ CORREÇÃO: Atualizar TODOS os totais com base no filtro
+    document.getElementById('total-entradas').textContent = formatarMoeda(totalEntradas);
+    document.getElementById('total-saidas').textContent = formatarMoeda(totalSaidas);
+    document.getElementById('saldo-atual').textContent = formatarMoeda(saldoAtual);
+
+    // Os totais do período são os mesmos quando há filtro
+    document.getElementById('entradas-periodo').textContent = formatarMoeda(totalEntradas);
+    document.getElementById('saidas-periodo').textContent = formatarMoeda(totalSaidas);
+    document.getElementById('saldo-periodo').textContent = formatarMoeda(saldoAtual);
+
+    console.log('💰 Totais atualizados - Entradas:', totalEntradas, 'Saídas:', totalSaidas, 'Saldo:', saldoAtual);
+}
+
+// ========== FUNÇÃO PARA LIMPAR FILTROS ==========
+function limparFiltrosMovimentacoes() {
+    console.log('🧹 Limpando filtros de movimentações...');
+    
+    const dataInicioMovimentacoes = document.getElementById('data-inicio-movimentacoes');
+    const dataFimMovimentacoes = document.getElementById('data-fim-movimentacoes');
+    
+    if (dataInicioMovimentacoes) dataInicioMovimentacoes.value = '';
+    if (dataFimMovimentacoes) dataFimMovimentacoes.value = '';
+    
+    // Atualizar a tabela e totais sem filtros
+    atualizarTabelaMovimentacoes();
+    atualizarTotaisFluxoCaixa();
+    
+    console.log('✅ Filtros limpos, mostrando todas as movimentações');
+}
+
+// Função para atualizar tabela de movimentações
+function atualizarTabelaMovimentacoes() {
+    const tbody = document.getElementById('movimentacoes-body');
+    if (!tbody) {
+        console.log('❌ Elemento movimentacoes-body não encontrado');
+        return;
+    }
+
+    console.log('📊 Atualizando tabela de movimentações. Total:', movimentacoesCaixa.length);
+
+    // ✅ CORREÇÃO: Limpar a tabela primeiro
+    tbody.innerHTML = '';
+
+    // ✅ CORREÇÃO: Se não há movimentações, mostrar mensagem
+    if (movimentacoesCaixa.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-4">
+                    <i class="bi bi-inbox"></i><br>
+                    Nenhuma movimentação encontrada
+                </td>
+            </tr>
+        `;
+        console.log('ℹ️ Nenhuma movimentação para exibir');
+        return;
+    }
+
+    // ✅ CORREÇÃO: Ordenar por data (mais recente primeiro) SEM filtrar por padrão
+    const movimentacoesOrdenadas = [...movimentacoesCaixa].sort((a, b) => 
+        new Date(b.data) - new Date(a.data)
+    );
+
+    console.log('📋 Movimentações ordenadas:', movimentacoesOrdenadas.length);
+
+    // ✅ CORREÇÃO: Adicionar todas as movimentações à tabela
+    movimentacoesOrdenadas.forEach(mov => {
+        const tr = document.createElement('tr');
+        const tipoClass = mov.tipo === 'entrada' ? 'text-success' : 'text-danger';
+        const tipoIcon = mov.tipo === 'entrada' ? 'bi-arrow-down-circle' : 'bi-arrow-up-circle';
+        const tipoTexto = mov.tipo === 'entrada' ? 'Entrada' : 'Saída';
+        
+        tr.innerHTML = `
+            <td>${mov.dataFormatada}</td>
+            <td><i class="bi ${tipoIcon} ${tipoClass} me-1"></i> ${tipoTexto}</td>
+            <td>${mov.categoria}</td>
+            <td>${mov.descricao}</td>
+            <td class="text-end ${tipoClass}">${formatarMoeda(mov.valor)}</td>
+            <td class="text-center">
+                <button class="btn btn-outline-danger btn-sm" onclick="excluirMovimentacao(${mov.id})" title="Excluir movimentação">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    console.log('✅ Tabela de movimentações atualizada com sucesso');
+}
+
+// Função para excluir movimentação
+function excluirMovimentacao(id) {
+    if (!confirm('Tem certeza que deseja excluir esta movimentação?')) {
+        return;
+    }
+
+    const index = movimentacoesCaixa.findIndex(mov => mov.id === id);
+    if (index !== -1) {
+        movimentacoesCaixa.splice(index, 1);
+        salvarMovimentacoesCaixa();
+        atualizarTotaisFluxoCaixa();
+        atualizarTabelaMovimentacoes();
+        alert('✅ Movimentação excluída com sucesso!');
+    }
+}
+
+// 3. CORREÇÃO: Função para adicionar venda no fluxo de caixa - VERSÃO MELHORADA
+function adicionarVendaFluxoCaixa(notaId, cliente, total) {
+    console.log('💰 Registrando venda no fluxo de caixa:', { notaId, cliente, total });
+    
+    const movimentacaoVenda = {
+        id: Date.now(),
+        tipo: 'entrada',
+        categoria: 'Venda',
+        descricao: `Venda #${notaId} - ${cliente || 'Cliente não identificado'}`,
+        valor: total,
+        data: new Date().toISOString(),
+        dataFormatada: new Date().toLocaleDateString('pt-BR')
+    };
+
+    movimentacoesCaixa.push(movimentacaoVenda);
+    salvarMovimentacoesCaixa();
+    
+    console.log('✅ Venda registrada no fluxo de caixa:', movimentacaoVenda);
+    
+    // Atualizar a interface se estiver na página do fluxo de caixa
+    if (!document.getElementById('pagina-fluxo-caixa').classList.contains('d-none')) {
+        atualizarTotaisFluxoCaixa();
+        atualizarTabelaMovimentacoes();
+    }
+}
+
+// ========== FUNÇÕES DE PERSISTÊNCIA DO FLUXO DE CAIXA ==========
+
+function salvarMovimentacoesCaixa() {
+    console.log('💾 Salvando movimentações do caixa:', movimentacoesCaixa.length);
+    localStorage.setItem('movimentacoesCaixa', JSON.stringify(movimentacoesCaixa));
+    salvarDadosUsuarioAtual(); // Garante sincronização com nuvem
+}
+
+function carregarMovimentacoesCaixa() {
+    console.log('📂 Carregando movimentações do caixa...');
+    const movimentacoesSalvas = localStorage.getItem('movimentacoesCaixa');
+    
+    if (movimentacoesSalvas) {
+        try {
+            movimentacoesCaixa = JSON.parse(movimentacoesSalvas);
+            console.log('✅ Movimentações carregadas:', movimentacoesCaixa.length);
+        } catch (error) {
+            console.error('❌ Erro ao carregar movimentações:', error);
+            movimentacoesCaixa = [];
+        }
+    } else {
+        console.log('📭 Nenhuma movimentação encontrada, inicializando array vazio');
+        movimentacoesCaixa = [];
+    }
+}
+
+// 10. CORREÇÃO: Adicionar função de verificação de integridade do fluxo de caixa
+function verificarIntegridadeFluxoCaixa() {
+    console.log('🔍 Verificando integridade do fluxo de caixa...');
+    console.log('   Movimentações carregadas:', movimentacoesCaixa.length);
+    console.log('   Total entradas:', movimentacoesCaixa.filter(m => m.tipo === 'entrada').length);
+    console.log('   Total saídas:', movimentacoesCaixa.filter(m => m.tipo === 'saida').length);
+    
+    // Verificar se há vendas sem registro no fluxo de caixa
+    const vendasSemFluxo = notasFiscais.filter(nota => {
+        return !movimentacoesCaixa.some(mov => 
+            mov.descricao.includes(`Venda #${nota.id}`)
+        );
+    });
+    
+    if (vendasSemFluxo.length > 0) {
+        console.warn('⚠️ Vendas sem registro no fluxo de caixa:', vendasSemFluxo.length);
+        // Opcional: Recriar registros faltantes
+        vendasSemFluxo.forEach(nota => {
+            console.log('🔄 Recriando registro para venda:', nota.id);
+            adicionarVendaFluxoCaixa(nota.id, nota.cliente, nota.total);
+        });
+    }
+}
+
+// ========== FUNÇÃO AUXILIAR PARA FORMATAR MOEDA ==========
+
+function formatarMoeda(valor) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(valor);
+}
+
 // ========== LINK SECRETO PARA ATIVAR MODO DESENVOLVEDOR ==========
 function adicionarLinkSecreto() {
     const loginContainer = document.getElementById('login-container');
@@ -1303,6 +1761,34 @@ function adicionarCSSMobile() {
     document.head.appendChild(style);
 }
 
+// 12. CORREÇÃO: Adicionar CSS para melhor visualização
+function adicionarCSSFluxoCaixa() {
+    const style = document.createElement('style');
+    style.innerHTML = `
+        .movimentacao-entrada {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .movimentacao-saida {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .card-entrada {
+            border-left: 4px solid #28a745;
+        }
+        .card-saida {
+            border-left: 4px solid #dc3545;
+        }
+        .card-saldo {
+            border-left: 4px solid #007bff;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+// Executar o CSS quando o DOM carregar
+document.addEventListener('DOMContentLoaded', adicionarCSSFluxoCaixa);
+
 function syncPendingData() {
     console.log('🔄 Verificando dados pendentes para sincronização...');
 }
@@ -1315,7 +1801,8 @@ function mostrarPagina(pagina) {
         'pagina-notas', 
         'pagina-relatorios',
         'pagina-lixeira',
-        'pagina-relatorio-diario'
+        'pagina-relatorio-diario',
+        'pagina-fluxo-caixa' // NOVO
     ];
     
     paginas.forEach(p => {
@@ -1349,6 +1836,8 @@ function mostrarPagina(pagina) {
         atualizarRelatorioDiario();
     } else if (pagina === 'carrinho') {
         atualizarPaginaCarrinho();
+    } else if (pagina === 'fluxo-caixa') {
+        atualizarFluxoCaixa();
     }
 }
 
@@ -2158,6 +2647,7 @@ function atualizarPaginaCarrinho() {
     cartTotalValue.textContent = total.toFixed(2).replace('.', ',');
 }
 
+// 4. CORREÇÃO: Função finalizarVenda - GARANTIR que chama o fluxo de caixa
 function finalizarVenda() {
     if (cart.length === 0) {
         alert("Carrinho vazio!");
@@ -2187,6 +2677,9 @@ function finalizarVenda() {
 
     notasFiscais.push(novaNota);
     salvarNotasFiscais();
+
+    // ✅ CORREÇÃO CRÍTICA: ADICIONAR VENDA NO FLUXO DE CAIXA (DEVE SER CHAMADO ANTES DE LIMPAR O CARRINHO)
+    adicionarVendaFluxoCaixa(proximoId, cliente, total);
 
     relatorioDiario.totalVendas += total;
     relatorioDiario.totalNotas += 1;
